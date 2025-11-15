@@ -11,10 +11,12 @@ import RecognizedFaceAlert from './RecognizedFaceAlert';
 import { loadOptimizedModels } from '@/services/face-recognition/OptimizedModelService';
 import { videoEnhancementService } from '@/services/ai/VideoEnhancementService';
 import { AlertCircle, Sparkles } from 'lucide-react';
+import * as faceapi from 'face-api.js';
 
 const AttendanceCapture = () => {
   const { toast } = useToast();
   const webcamRef = useRef<HTMLVideoElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<{
@@ -25,6 +27,8 @@ const AttendanceCapture = () => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [captureFlash, setCaptureFlash] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [detectedFaces, setDetectedFaces] = useState<any[]>([]);
+  const detectionIntervalRef = useRef<number>();
   const [unrecognizedAlert, setUnrecognizedAlert] = useState<{
     imageUrl: string;
     timestamp: Date;
@@ -45,6 +49,13 @@ const AttendanceCapture = () => {
     error,
     resetProcessing: resetResult
   } = useOptimizedFaceRecognition();
+
+  // Wrapper to reset all state including captured image and detected faces
+  const handleReset = () => {
+    resetResult();
+    setCapturedImage(null);
+    setDetectedFaces([]);
+  };
   
   // Initial model availability check with cleanup and debouncing
   useEffect(() => {
@@ -94,6 +105,83 @@ const AttendanceCapture = () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [isModelLoading, enhancementEnabled, modelStatus]);
+
+  // Real-time face detection overlay
+  useEffect(() => {
+    const runFaceDetection = async () => {
+      if (!webcamRef.current || isProcessing || result || capturedImage) return;
+
+      const video = webcamRef.current;
+      if (video.readyState !== 4) return;
+
+      try {
+        const detections = await faceapi
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+          .withFaceLandmarks(true);
+
+        setDetectedFaces(detections);
+
+        // Draw on overlay canvas
+        if (overlayCanvasRef.current && detections.length > 0) {
+          const canvas = overlayCanvasRef.current;
+          const displaySize = { width: video.videoWidth, height: video.videoHeight };
+          faceapi.matchDimensions(canvas, displaySize);
+
+          const resizedDetections = faceapi.resizeResults(detections, displaySize);
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw bounding boxes with modern design
+            resizedDetections.forEach((detection) => {
+              const box = detection.detection.box;
+              
+              // Main box
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 3;
+              ctx.strokeRect(box.x, box.y, box.width, box.height);
+              
+              // Corner accents
+              const cornerSize = 20;
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 4;
+              
+              // Draw corners
+              [
+                [[box.x, box.y + cornerSize], [box.x, box.y], [box.x + cornerSize, box.y]],
+                [[box.x + box.width - cornerSize, box.y], [box.x + box.width, box.y], [box.x + box.width, box.y + cornerSize]],
+                [[box.x, box.y + box.height - cornerSize], [box.x, box.y + box.height], [box.x + cornerSize, box.y + box.height]],
+                [[box.x + box.width - cornerSize, box.y + box.height], [box.x + box.width, box.y + box.height], [box.x + box.width, box.y + box.height - cornerSize]]
+              ].forEach(corner => {
+                ctx.beginPath();
+                ctx.moveTo(corner[0][0], corner[0][1]);
+                ctx.lineTo(corner[1][0], corner[1][1]);
+                ctx.lineTo(corner[2][0], corner[2][1]);
+                ctx.stroke();
+              });
+            });
+          }
+        } else if (overlayCanvasRef.current) {
+          const ctx = overlayCanvasRef.current.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+          }
+        }
+      } catch (error) {
+        console.error('Face detection error:', error);
+      }
+    };
+
+    if (!result && !isProcessing && !capturedImage && modelStatus === 'ready') {
+      detectionIntervalRef.current = window.setInterval(runFaceDetection, 300);
+    }
+
+    return () => {
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+      }
+    };
+  }, [isProcessing, result, capturedImage, modelStatus]);
   
   const runDiagnostics = async () => {
     setShowDiagnostics(true);
@@ -390,14 +478,31 @@ const AttendanceCapture = () => {
               </div>
             )}
             
-            <Webcam
-              ref={webcamRef}
-              onCapture={() => handleCapture()}
-              className="w-full"
-              showControls={!isProcessing && !result}
-              autoStart={!result}
-              enhancementEnabled={enhancementEnabled}
-            />
+            <div className="relative">
+              <Webcam
+                ref={webcamRef}
+                onCapture={() => handleCapture()}
+                className="w-full"
+                showControls={!isProcessing && !result}
+                autoStart={!result}
+                enhancementEnabled={enhancementEnabled}
+              />
+              
+              {/* Face detection overlay canvas */}
+              <canvas
+                ref={overlayCanvasRef}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={{ zIndex: 5 }}
+              />
+              
+              {/* Face detection indicator */}
+              {detectedFaces.length > 0 && !capturedImage && (
+                <div className="absolute top-4 left-4 bg-green-500/90 text-white px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 animate-fade-in" style={{ zIndex: 6 }}>
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  {detectedFaces.length} face{detectedFaces.length > 1 ? 's' : ''} detected
+                </div>
+              )}
+            </div>
           </div>
         )}
         
@@ -415,7 +520,7 @@ const AttendanceCapture = () => {
           </div>
         )}
         
-        {result && <AttendanceResult result={result} resetResult={resetResult} />}
+        {result && <AttendanceResult result={result} resetResult={handleReset} />}
       </div>
     </Card>
   );
