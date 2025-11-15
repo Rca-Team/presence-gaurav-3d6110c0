@@ -11,8 +11,9 @@ import AttendanceSidebar from '@/components/attendance/AttendanceSidebar';
 import AttendanceResult from '@/components/attendance/AttendanceResult';
 import AttendanceToday from '@/components/attendance/AttendanceToday';
 import AttendanceStats from '@/components/attendance/AttendanceStats';
+import AttendanceGallery from '@/components/attendance/AttendanceGallery';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Camera, Users, BarChart3, Info } from 'lucide-react';
+import { Camera, Users, BarChart3, Info, Grid3x3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const Attendance = () => {
@@ -45,7 +46,7 @@ const Attendance = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 gap-1 p-1">
           <TabsTrigger value="single" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
             <Camera className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Single Face</span>
@@ -56,6 +57,11 @@ const Attendance = () => {
             <span className="hidden sm:inline">Multiple Faces</span>
             <span className="sm:hidden">Multiple</span>
             <Badge variant="secondary" className="text-xs ml-1 hidden sm:inline">New</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="gallery" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+            <Grid3x3 className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Gallery</span>
+            <span className="sm:hidden">Gallery</span>
           </TabsTrigger>
           <TabsTrigger value="stats" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
             <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -89,6 +95,10 @@ const Attendance = () => {
 
         <TabsContent value="multiple" className="space-y-6">
           <MultipleAttendanceCapture />
+        </TabsContent>
+
+        <TabsContent value="gallery" className="space-y-4 sm:space-y-6">
+          <AttendanceGallery />
         </TabsContent>
 
         <TabsContent value="stats" className="space-y-4 sm:space-y-6">
