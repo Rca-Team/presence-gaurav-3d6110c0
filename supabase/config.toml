@@ -1,0 +1,19 @@
+project_id = "tegpyalokurixuvgeuks"
+
+[functions.send-notification]
+verify_jwt = true
+
+[functions.send-sms]
+verify_jwt = true
+
+[functions.smart-notifications]
+verify_jwt = false
+
+[functions.ai-insights]
+verify_jwt = false
+
+[functions.face-recognition]
+verify_jwt = false
+
+[functions.auto-attendance-notifications]
+verify_jwt = false

@@ -1,0 +1,426 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 220 25% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 10%;
+
+    --primary: 212 100% 47%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 220 25% 14%;
+
+    --muted: 210 20% 94%;
+    --muted-foreground: 220 15% 40%;
+
+    --accent: 210 40% 94%;
+    --accent-foreground: 220 25% 14%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 15% 90%;
+    --input: 220 15% 90%;
+    --ring: 212 100% 47%;
+
+    --radius: 0.75rem;
+
+    --gradient-start: rgba(228, 231, 238, 0.8);
+    --gradient-end: rgba(240, 243, 247, 0.8);
+
+    --sidebar-background: 210 20% 98%;
+    --sidebar-foreground: 220 25% 10%;
+    --sidebar-primary: 212 100% 47%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 94%;
+    --sidebar-accent-foreground: 220 25% 14%;
+    --sidebar-border: 220 15% 90%;
+    --sidebar-ring: 212 100% 47%;
+
+    /* School theme colors */
+    --school-blue: 212 100% 47%;
+    --school-green: 142 69% 58%;
+    --school-yellow: 48 96% 67%;
+    --school-red: 0 84% 60%;
+    --school-purple: 269 56% 45%;
+
+    /* Animation properties */
+    --animation-timing: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 223 47% 11%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 224 76% 48%;
+
+    --gradient-start: rgba(15, 23, 42, 0.95);
+    --gradient-end: rgba(30, 41, 59, 0.95);
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 224 76% 48%;
+
+    /* Neon accents for dark mode */
+    --neon-cyan: 189 97% 75%;
+    --neon-purple: 271 91% 65%;
+    --neon-blue: 217 91% 60%;
+    --neon-pink: 316 73% 69%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    transition: background-color 0.5s var(--animation-timing);
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full transition-colors;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/80 dark:bg-slate-900/40 backdrop-blur-xl border border-white/30 dark:border-cyan-500/20 rounded-2xl shadow-lg dark:shadow-cyan-500/10;
+    transition: all 0.4s var(--animation-timing);
+  }
+  
+  .backdrop-panel {
+    @apply bg-gradient-subtle backdrop-blur-md rounded-2xl shadow-sm;
+    transition: all 0.4s var(--animation-timing);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Enhanced Card hover effect */
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-md;
+    transition: transform 0.4s var(--animation-timing), 
+                box-shadow 0.4s var(--animation-timing),
+                opacity 0.4s var(--animation-timing);
+  }
+
+  /* Enhanced Button hover effect */
+  .button-hover {
+    @apply transition-all duration-300 hover:brightness-105 active:brightness-95;
+    transition: all 0.3s var(--animation-timing);
+  }
+  
+  /* Mobile optimizations */
+  .mobile-container {
+    @apply px-4 sm:px-6 md:px-8;
+  }
+  
+  .mobile-touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  
+  .mobile-friendly-spacing {
+    @apply space-y-4 md:space-y-6;
+  }
+  
+  /* Responsive typography */
+  .responsive-heading {
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl;
+  }
+  
+  .responsive-text {
+    @apply text-sm sm:text-base md:text-lg;
+  }
+
+  /* Neon glow effects */
+  .neon-glow-cyan {
+    box-shadow: 0 0 20px hsl(var(--neon-cyan) / 0.3), 0 0 40px hsl(var(--neon-cyan) / 0.2);
+  }
+
+  .neon-glow-purple {
+    box-shadow: 0 0 20px hsl(var(--neon-purple) / 0.3), 0 0 40px hsl(var(--neon-purple) / 0.2);
+  }
+
+  .neon-glow-blue {
+    box-shadow: 0 0 20px hsl(var(--neon-blue) / 0.3), 0 0 40px hsl(var(--neon-blue) / 0.2);
+  }
+
+  /* School themed components - enhanced with ISO UI style */
+  .school-card {
+    @apply relative overflow-hidden rounded-xl border bg-white/90 dark:bg-slate-900/60 dark:border-cyan-500/30 shadow-md transition-all hover:shadow-xl dark:hover:shadow-cyan-500/20;
+    transition: all 0.4s var(--animation-timing);
+  }
+
+  .school-card::before {
+    @apply content-[''] absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[hsl(var(--school-blue))] via-[hsl(var(--school-green))] to-[hsl(var(--school-yellow))];
+  }
+
+  /* ISO UI style attendance indicators */
+  .attendance-present {
+    @apply bg-[hsl(var(--school-green))] text-white font-medium px-2 py-1 rounded-full text-xs;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .attendance-late {
+    @apply bg-[hsl(var(--school-yellow))] text-gray-800 font-medium px-2 py-1 rounded-full text-xs;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .attendance-absent {
+    @apply bg-[hsl(var(--school-red))] text-white font-medium px-2 py-1 rounded-full text-xs;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .school-gradient-bg {
+    @apply bg-gradient-to-br from-blue-50 via-indigo-50 to-sky-50 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-sky-950/10;
+    transition: background 1s var(--animation-timing);
+  }
+  
+  /* New ISO UI Components */
+  .iso-card {
+    @apply relative bg-white dark:bg-gray-900 rounded-xl p-6 shadow-lg overflow-hidden;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 
+                0 8px 10px -6px rgba(0, 0, 0, 0.01);
+    transition: all 0.4s var(--animation-timing);
+  }
+  
+  .iso-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 
+                0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+  
+  .iso-input {
+    @apply bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none;
+    transition: all 0.3s var(--animation-timing);
+  }
+  
+  .iso-button {
+    @apply relative overflow-hidden rounded-lg px-5 py-2.5 font-medium transition-all;
+    transition: all 0.3s var(--animation-timing);
+  }
+  
+  .iso-button:after {
+    content: '';
+    @apply absolute inset-0 rounded-lg opacity-0;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 80%);
+    transition: opacity 0.5s var(--animation-timing);
+  }
+  
+  .iso-button:active:after {
+    opacity: 0.4;
+    transition: 0s;
+  }
+}
+
+/* Enhanced Page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 500ms, transform 500ms var(--animation-timing);
+}
+
+.page-exit {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.page-exit-active {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+  transition: opacity 500ms, transform 500ms var(--animation-timing);
+}
+
+/* Enhanced Rotation animation */
+@keyframes float-rotate {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(5deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+.animate-float-rotate {
+  animation: float-rotate 6s var(--animation-timing) infinite;
+}
+
+/* Enhanced 3D hover animation */
+.hover-3d {
+  transition: all 0.5s var(--animation-timing);
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
+
+.hover-3d:hover {
+  transform: rotateX(5deg) rotateY(5deg) scale(1.05);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* ISO UI specific animations */
+@keyframes smooth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-smooth-enter {
+  animation: smooth-enter 0.8s var(--animation-timing);
+}
+
+@keyframes subtle-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.8;
+  }
+}
+
+.animate-subtle-pulse {
+  animation: subtle-pulse 3s var(--animation-timing) infinite;
+}
+
+@keyframes float-shadow {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.animate-float-shadow {
+  animation: float-shadow 6s var(--animation-timing) infinite;
+}
+
+/* Enhanced School-specific animations */
+@keyframes bell-ring {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  20%, 60% {
+    transform: rotate(15deg);
+  }
+  40%, 80% {
+    transform: rotate(-15deg);
+  }
+}
+
+.animate-bell-ring {
+  animation: bell-ring 2s var(--animation-timing);
+}
+
+@keyframes pencil-write {
+  0% {
+    transform: translateX(0) translateY(0);
+  }
+  25% {
+    transform: translateX(5px) translateY(5px);
+  }
+  50% {
+    transform: translateX(10px) translateY(0);
+  }
+  75% {
+    transform: translateX(15px) translateY(5px);
+  }
+  100% {
+    transform: translateX(20px) translateY(0);
+  }
+}
+
+.animate-pencil-write {
+  animation: pencil-write 3s var(--animation-timing);
+}
+
+/* Mobile-specific media queries */
+@media (max-width: 640px) {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+}
