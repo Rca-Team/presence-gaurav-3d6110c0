@@ -2,6 +2,7 @@
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { videoEnhancementService } from '@/services/ai/VideoEnhancementService';
 
 interface WebcamProps {
   onCapture?: (image: string) => void;
@@ -11,6 +12,7 @@ interface WebcamProps {
   showControls?: boolean;
   aspectRatio?: 'square' | 'video';
   autoStart?: boolean;
+  enhancementEnabled?: boolean;
 }
 
 export const Webcam = forwardRef<HTMLVideoElement, WebcamProps>(({
@@ -21,15 +23,19 @@ export const Webcam = forwardRef<HTMLVideoElement, WebcamProps>(({
   showControls = true,
   aspectRatio = 'video',
   autoStart = true,
+  enhancementEnabled = false,
 }, ref) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const enhancementCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isActive, setIsActive] = useState(autoStart);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isEnhancing, setIsEnhancing] = useState(false);
   const retryTimeoutRef = useRef<number | null>(null);
   const attemptCountRef = useRef(0);
+  const enhancementIntervalRef = useRef<number | null>(null);
   const MAX_RETRY_ATTEMPTS = 3;
 
   useImperativeHandle(ref, () => localVideoRef.current!, []);
@@ -184,8 +190,64 @@ export const Webcam = forwardRef<HTMLVideoElement, WebcamProps>(({
       if (retryTimeoutRef.current) {
         window.clearTimeout(retryTimeoutRef.current);
       }
+      if (enhancementIntervalRef.current) {
+        window.clearInterval(enhancementIntervalRef.current);
+      }
     };
   }, [isActive, cameraFacing]);
+
+  // Video enhancement loop - runs continuously when enabled
+  useEffect(() => {
+    if (!enhancementEnabled || !localVideoRef.current || !enhancementCanvasRef.current || !isActive) {
+      return;
+    }
+
+    const enhanceFrame = async () => {
+      if (!localVideoRef.current || !enhancementCanvasRef.current || isEnhancing) {
+        return;
+      }
+
+      const video = localVideoRef.current;
+      const canvas = enhancementCanvasRef.current;
+
+      if (video.readyState < 2 || video.videoWidth === 0) {
+        return;
+      }
+
+      setIsEnhancing(true);
+      
+      try {
+        // Initialize enhancement service if needed
+        if (!videoEnhancementService.isEnhancementAvailable()) {
+          await videoEnhancementService.initialize();
+        }
+
+        // Enhance the current frame
+        const enhancedCanvas = await videoEnhancementService.enhanceVideoFrame(video);
+        
+        // Draw enhanced frame to display canvas
+        canvas.width = enhancedCanvas.width;
+        canvas.height = enhancedCanvas.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(enhancedCanvas, 0, 0);
+        }
+      } catch (error) {
+        console.warn('Frame enhancement failed:', error);
+      } finally {
+        setIsEnhancing(false);
+      }
+    };
+
+    // Enhance frames at ~5 FPS for smooth performance
+    enhancementIntervalRef.current = window.setInterval(enhanceFrame, 200);
+
+    return () => {
+      if (enhancementIntervalRef.current) {
+        window.clearInterval(enhancementIntervalRef.current);
+      }
+    };
+  }, [enhancementEnabled, isActive]);
 
   const handleCapture = () => {
     if (!localVideoRef.current || !canvasRef.current) return;
@@ -257,6 +319,7 @@ export const Webcam = forwardRef<HTMLVideoElement, WebcamProps>(({
         </div>
       )}
       
+      {/* Video element (hidden when enhancement is active) */}
       <video
         ref={localVideoRef}
         autoPlay
@@ -264,9 +327,33 @@ export const Webcam = forwardRef<HTMLVideoElement, WebcamProps>(({
         muted
         className={cn(
           "w-full h-full object-cover transition-opacity duration-300",
-          isActive && !isLoading && !error ? "opacity-100" : "opacity-0"
+          isActive && !isLoading && !error ? "opacity-100" : "opacity-0",
+          enhancementEnabled && "hidden"
         )}
+        style={{ transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none' }}
       />
+
+      {/* Enhanced video canvas (shown when enhancement is active) */}
+      {enhancementEnabled && (
+        <canvas
+          ref={enhancementCanvasRef}
+          className={cn(
+            "w-full h-full object-cover transition-opacity duration-300",
+            isActive && !isLoading && !error ? "opacity-100" : "opacity-0"
+          )}
+          style={{ transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none' }}
+        />
+      )}
+
+      {/* Enhancement indicator */}
+      {enhancementEnabled && isActive && !error && (
+        <div className="absolute top-2 right-2 bg-primary/80 text-primary-foreground px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 animate-fade-in z-10">
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
+          <span>Enhanced</span>
+        </div>
+      )}
       
       <canvas ref={canvasRef} className="hidden" />
       

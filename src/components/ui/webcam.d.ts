@@ -10,6 +10,7 @@ export interface WebcamProps {
   cameraFacing?: 'user' | 'environment';
   aspectRatio?: 'square' | 'video';
   autoStart?: boolean;
+  enhancementEnabled?: boolean;
 }
 
 // Define the Webcam component with ref

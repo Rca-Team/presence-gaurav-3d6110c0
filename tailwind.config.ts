@@ -135,6 +135,10 @@ export default {
 				'glow-pulse': {
 					'0%, 100%': { boxShadow: '0 0 5px rgba(59, 130, 246, 0.5)' },
 					'50%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.8)' }
+				},
+				'scale-in': {
+					'0%': { transform: 'scale(0.9)', opacity: '0' },
+					'100%': { transform: 'scale(1)', opacity: '1' }
 				}
 			},
 			animation: {
@@ -142,6 +146,7 @@ export default {
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'fade-in': 'fade-in 0.4s ease-out',
 				'fade-out': 'fade-out 0.4s ease-out',
+				'scale-in': 'scale-in 0.3s ease-out',
 				'slide-in-up': 'slide-in-up 0.5s ease-out',
 				'slide-in-down': 'slide-in-down 0.5s ease-out',
 				'slide-in-left': 'slide-in-left 0.5s ease-out',

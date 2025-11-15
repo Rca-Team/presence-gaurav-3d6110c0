@@ -23,6 +23,8 @@ const AttendanceCapture = () => {
   } | null>(null);
   const [enhancementEnabled, setEnhancementEnabled] = useState(true);
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [captureFlash, setCaptureFlash] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [unrecognizedAlert, setUnrecognizedAlert] = useState<{
     imageUrl: string;
     timestamp: Date;
@@ -144,32 +146,54 @@ const AttendanceCapture = () => {
     }
     
     try {
-      console.log('Processing face recognition...');
-      console.log('Webcam video element:', webcamRef.current);
-      console.log('Video element ready state:', webcamRef.current.readyState);
-      console.log('Video dimensions:', webcamRef.current.videoWidth, 'x', webcamRef.current.videoHeight);
+      // Trigger flash animation
+      setCaptureFlash(true);
+      setTimeout(() => setCaptureFlash(false), 300);
+      
+      console.log('Capturing instant image...');
+      
+      // Capture instant image
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
+      }
+      
+      canvas.width = webcamRef.current.videoWidth;
+      canvas.height = webcamRef.current.videoHeight;
+      ctx.drawImage(webcamRef.current, 0, 0);
       
       // Apply video enhancement if enabled
-      let videoElement = webcamRef.current;
+      let imageToProcess = canvas;
       if (enhancementEnabled && videoEnhancementService.isEnhancementAvailable()) {
         setIsEnhancing(true);
         try {
+          console.log('Enhancing captured image for better recognition...');
           const enhancedCanvas = await videoEnhancementService.enhanceVideoFrame(webcamRef.current);
-          // Create a video element from the enhanced canvas
-          const enhancedVideo = document.createElement('video');
-          enhancedVideo.srcObject = enhancedCanvas.captureStream();
-          enhancedVideo.play();
-          console.log('Video frame enhanced for better recognition');
+          imageToProcess = enhancedCanvas;
         } catch (enhanceError) {
-          console.warn('Enhancement failed, using original video:', enhanceError);
+          console.warn('Enhancement failed, using original image:', enhanceError);
         } finally {
           setIsEnhancing(false);
         }
       }
       
-      const recognitionResult = await processFace(videoElement, {
+      const imageDataUrl = imageToProcess.toDataURL('image/jpeg', 0.95);
+      setCapturedImage(imageDataUrl);
+      
+      // Create an image element from the captured data
+      const img = new Image();
+      img.src = imageDataUrl;
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+      });
+      
+      console.log('Processing captured image...');
+      console.log('Image dimensions:', img.width, 'x', img.height);
+      
+      const recognitionResult = await processFace(img, {
         enableMultipleFaces: false,
-        enableTracking: true
+        enableTracking: false
       });
       
       if (!recognitionResult) {
@@ -188,16 +212,8 @@ const AttendanceCapture = () => {
         if (single.recognized && single.employee) {
           const displayStatus = single.status === 'present' ? 'present' : single.status === 'late' ? 'late' : 'unauthorized';
           
-          // Capture image for recognized faces too
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          let imageUrl = '';
-          if (ctx && webcamRef.current) {
-            canvas.width = webcamRef.current.videoWidth;
-            canvas.height = webcamRef.current.videoHeight;
-            ctx.drawImage(webcamRef.current, 0, 0);
-            imageUrl = canvas.toDataURL('image/jpeg');
-          }
+          // Use the captured image
+          const imageUrl = capturedImage || '';
           
           // Show popup for present and late status
           if (displayStatus === 'present' || displayStatus === 'late') {
@@ -217,17 +233,10 @@ const AttendanceCapture = () => {
             variant: displayStatus === 'present' ? "default" : displayStatus === 'late' ? "default" : "destructive",
           });
         } else {
-          // Capture the unrecognized face image
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          if (ctx && webcamRef.current) {
-            canvas.width = webcamRef.current.videoWidth;
-            canvas.height = webcamRef.current.videoHeight;
-            ctx.drawImage(webcamRef.current, 0, 0);
-            const imageUrl = canvas.toDataURL('image/jpeg');
-            
+          // Unrecognized face - use captured image
+          if (capturedImage) {
             setUnrecognizedAlert({
-              imageUrl,
+              imageUrl: capturedImage,
               timestamp: new Date()
             });
           }
@@ -358,13 +367,38 @@ const AttendanceCapture = () => {
             )}
           </div>
         ) : (
-          <Webcam
-            ref={webcamRef}
-            onCapture={() => handleCapture()}
-            className="w-full"
-            showControls={!isProcessing && !result}
-            autoStart={!result}
-          />
+          <div className="relative">
+            {/* Flash animation overlay */}
+            {captureFlash && (
+              <div className="absolute inset-0 bg-white animate-[fade-out_0.3s_ease-out] z-10 pointer-events-none" />
+            )}
+            
+            {/* Captured image preview during processing */}
+            {capturedImage && isProcessing && (
+              <div className="absolute inset-0 z-20 bg-background/95 flex items-center justify-center animate-fade-in">
+                <div className="text-center space-y-4">
+                  <img 
+                    src={capturedImage} 
+                    alt="Captured" 
+                    className="max-w-full max-h-[300px] rounded-lg shadow-lg animate-scale-in"
+                  />
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+                    <p className="text-muted-foreground">Processing captured image...</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <Webcam
+              ref={webcamRef}
+              onCapture={() => handleCapture()}
+              className="w-full"
+              showControls={!isProcessing && !result}
+              autoStart={!result}
+              enhancementEnabled={enhancementEnabled}
+            />
+          </div>
         )}
         
         {isModelLoading && (
