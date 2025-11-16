@@ -196,7 +196,7 @@ export const Webcam = forwardRef<HTMLVideoElement, WebcamProps>(({
     };
   }, [isActive, cameraFacing]);
 
-  // Video enhancement loop - runs continuously when enabled
+  // Video enhancement loop - optimized for performance
   useEffect(() => {
     if (!enhancementEnabled || !localVideoRef.current || !enhancementCanvasRef.current || !isActive) {
       return;
@@ -239,8 +239,8 @@ export const Webcam = forwardRef<HTMLVideoElement, WebcamProps>(({
       }
     };
 
-    // Enhance frames at ~5 FPS for smooth performance
-    enhancementIntervalRef.current = window.setInterval(enhanceFrame, 200);
+    // Reduced frequency: 2 FPS for better performance (500ms interval)
+    enhancementIntervalRef.current = window.setInterval(enhanceFrame, 500);
 
     return () => {
       if (enhancementIntervalRef.current) {
