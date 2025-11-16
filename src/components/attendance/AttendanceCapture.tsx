@@ -1,22 +1,24 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Webcam } from '@/components/ui/webcam';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useOptimizedFaceRecognition } from '@/hooks/useOptimizedFaceRecognition';
 import AttendanceResult from './AttendanceResult';
 import UnrecognizedFaceAlert from './UnrecognizedFaceAlert';
 import RecognizedFaceAlert from './RecognizedFaceAlert';
 import { loadOptimizedModels } from '@/services/face-recognition/OptimizedModelService';
 import { videoEnhancementService } from '@/services/ai/VideoEnhancementService';
-import { AlertCircle, Sparkles } from 'lucide-react';
+import { AlertCircle, Sparkles, Users } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 
 const AttendanceCapture = () => {
   const { toast } = useToast();
   const webcamRef = useRef<HTMLVideoElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<{
@@ -169,6 +171,75 @@ const AttendanceCapture = () => {
           const ctx = overlayCanvasRef.current.getContext('2d');
           if (ctx) {
             ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+          }
+        }
+
+        // Draw face previews on preview canvas
+        if (previewCanvasRef.current && detections.length > 0) {
+          const previewCanvas = previewCanvasRef.current;
+          const previewCtx = previewCanvas.getContext('2d');
+          if (previewCtx) {
+            const displaySize = { width: video.videoWidth, height: video.videoHeight };
+            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+            
+            // Set canvas size for grid layout
+            const cols = Math.min(3, detections.length);
+            const rows = Math.ceil(detections.length / cols);
+            const cellSize = 120;
+            const padding = 10;
+            
+            previewCanvas.width = cols * (cellSize + padding);
+            previewCanvas.height = rows * (cellSize + padding);
+            
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            
+            // Draw each detected face
+            resizedDetections.forEach((detection, index) => {
+              const box = detection.detection.box;
+              const col = index % cols;
+              const row = Math.floor(index / cols);
+              const x = col * (cellSize + padding);
+              const y = row * (cellSize + padding);
+              
+              // Draw cropped face with padding
+              const scaleFactor = Math.max(video.videoWidth / video.width, video.videoHeight / video.height);
+              const scaledBox = {
+                x: box.x / scaleFactor,
+                y: box.y / scaleFactor,
+                width: box.width / scaleFactor,
+                height: box.height / scaleFactor
+              };
+              
+              previewCtx.save();
+              previewCtx.fillStyle = 'rgba(16, 185, 129, 0.1)';
+              previewCtx.fillRect(x, y, cellSize, cellSize);
+              previewCtx.strokeStyle = '#10b981';
+              previewCtx.lineWidth = 2;
+              previewCtx.strokeRect(x, y, cellSize, cellSize);
+              
+              try {
+                previewCtx.drawImage(
+                  video,
+                  scaledBox.x,
+                  scaledBox.y,
+                  scaledBox.width,
+                  scaledBox.height,
+                  x + 5,
+                  y + 5,
+                  cellSize - 10,
+                  cellSize - 10
+                );
+              } catch (e) {
+                console.warn('Error drawing face preview:', e);
+              }
+              
+              previewCtx.restore();
+            });
+          }
+        } else if (previewCanvasRef.current) {
+          const previewCtx = previewCanvasRef.current.getContext('2d');
+          if (previewCtx) {
+            previewCtx.clearRect(0, 0, previewCanvasRef.current.width, previewCanvasRef.current.height);
           }
         }
       } catch (error) {
@@ -462,53 +533,97 @@ const AttendanceCapture = () => {
             )}
           </div>
         ) : (
-          <div className="relative">
-            {/* Flash animation overlay */}
-            {captureFlash && (
-              <div className="absolute inset-0 bg-white animate-[fade-out_0.3s_ease-out] z-10 pointer-events-none" />
-            )}
-            
-            {/* Captured image preview during processing */}
-            {capturedImage && isProcessing && (
-              <div className="absolute inset-0 z-20 bg-background/95 flex items-center justify-center animate-fade-in">
-                <div className="text-center space-y-4">
-                  <img 
-                    src={capturedImage} 
-                    alt="Captured" 
-                    className="max-w-full max-h-[300px] rounded-lg shadow-lg animate-scale-in"
-                  />
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-                    <p className="text-muted-foreground">Processing captured image...</p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Main camera view */}
+            <div className="lg:col-span-2 relative">
+              {/* Flash animation overlay */}
+              {captureFlash && (
+                <div className="absolute inset-0 bg-white animate-[fade-out_0.3s_ease-out] z-10 pointer-events-none" />
+              )}
+              
+              {/* Captured image preview during processing */}
+              {capturedImage && isProcessing && (
+                <div className="absolute inset-0 z-20 bg-background/95 flex items-center justify-center animate-fade-in">
+                  <div className="text-center space-y-4">
+                    <img 
+                      src={capturedImage} 
+                      alt="Captured" 
+                      className="max-w-full max-h-[300px] rounded-lg shadow-lg animate-scale-in"
+                    />
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+                      <p className="text-muted-foreground">Processing captured image...</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            <div className="relative">
-              <Webcam
-                ref={webcamRef}
-                onCapture={() => handleCapture()}
-                className="w-full"
-                showControls={!isProcessing && !result}
-                autoStart={!result}
-                enhancementEnabled={enhancementEnabled}
-              />
-              
-              {/* Face detection overlay canvas */}
-              <canvas
-                ref={overlayCanvasRef}
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                style={{ zIndex: 5 }}
-              />
-              
-              {/* Face detection indicator */}
-              {detectedFaces.length > 0 && !capturedImage && (
-                <div className="absolute top-4 left-4 bg-green-500/90 text-white px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 animate-fade-in" style={{ zIndex: 6 }}>
-                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                  {detectedFaces.length} face{detectedFaces.length > 1 ? 's' : ''} detected
-                </div>
               )}
+              
+              <div className="relative">
+                <Webcam
+                  ref={webcamRef}
+                  onCapture={() => handleCapture()}
+                  className="w-full"
+                  showControls={!isProcessing && !result}
+                  autoStart={!result}
+                  enhancementEnabled={enhancementEnabled}
+                />
+                
+                {/* Face detection overlay canvas */}
+                <canvas
+                  ref={overlayCanvasRef}
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  style={{ zIndex: 5 }}
+                />
+                
+                {/* Face detection indicator */}
+                {detectedFaces.length > 0 && !capturedImage && (
+                  <div className="absolute top-4 left-4 bg-green-500/90 text-white px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 animate-fade-in" style={{ zIndex: 6 }}>
+                    <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                    {detectedFaces.length} face{detectedFaces.length > 1 ? 's' : ''} detected
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Face preview panel */}
+            <div className="lg:col-span-1">
+              <Card className="h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Detected Faces
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {detectedFaces.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">No faces detected yet</p>
+                      <p className="text-xs mt-1">Position yourself in front of the camera</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <span className="text-sm font-medium">Total Faces</span>
+                        <Badge variant="secondary" className="text-sm">
+                          {detectedFaces.length}
+                        </Badge>
+                      </div>
+                      
+                      <div className="relative rounded-lg border border-border overflow-hidden bg-muted/30">
+                        <canvas
+                          ref={previewCanvasRef}
+                          className="w-full h-auto"
+                        />
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground text-center">
+                        Ready to capture when positioned correctly
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </div>
         )}
