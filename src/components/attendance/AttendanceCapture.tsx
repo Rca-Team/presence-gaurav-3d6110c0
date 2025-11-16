@@ -11,7 +11,7 @@ import UnrecognizedFaceAlert from './UnrecognizedFaceAlert';
 import RecognizedFaceAlert from './RecognizedFaceAlert';
 import { loadOptimizedModels } from '@/services/face-recognition/OptimizedModelService';
 import { videoEnhancementService } from '@/services/ai/VideoEnhancementService';
-import { AlertCircle, Sparkles, Users } from 'lucide-react';
+import { AlertCircle, Sparkles, Users, Camera } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 
 const AttendanceCapture = () => {
@@ -25,12 +25,14 @@ const AttendanceCapture = () => {
     accessible: boolean;
     errors: string[];
   } | null>(null);
-  const [enhancementEnabled, setEnhancementEnabled] = useState(true);
+  const [enhancementEnabled, setEnhancementEnabled] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [captureFlash, setCaptureFlash] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [livePreviewImage, setLivePreviewImage] = useState<string | null>(null);
   const [detectedFaces, setDetectedFaces] = useState<any[]>([]);
   const detectionIntervalRef = useRef<number>();
+  const previewIntervalRef = useRef<number>();
   const [unrecognizedAlert, setUnrecognizedAlert] = useState<{
     imageUrl: string;
     timestamp: Date;
@@ -56,6 +58,7 @@ const AttendanceCapture = () => {
   const handleReset = () => {
     resetResult();
     setCapturedImage(null);
+    setLivePreviewImage(null);
     setDetectedFaces([]);
   };
   
@@ -108,6 +111,40 @@ const AttendanceCapture = () => {
     };
   }, [isModelLoading, enhancementEnabled, modelStatus]);
 
+  // Live photo preview - shows what will be captured  
+  useEffect(() => {
+    const updatePreview = () => {
+      if (!webcamRef.current || !previewCanvasRef.current || isProcessing || result || capturedImage) return;
+
+      const video = webcamRef.current;
+      const canvas = previewCanvasRef.current;
+      
+      if (video.readyState !== 4) return;
+
+      try {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(video, 0, 0);
+        }
+      } catch (error) {
+        console.warn('Preview update error:', error);
+      }
+    };
+
+    // Update preview at 5 FPS for smooth but efficient preview
+    previewIntervalRef.current = window.setInterval(updatePreview, 200);
+
+    return () => {
+      if (previewIntervalRef.current) {
+        clearInterval(previewIntervalRef.current);
+      }
+    };
+  }, [isProcessing, result, capturedImage]);
+
   // Real-time face detection overlay - optimized for performance
   useEffect(() => {
     let isDetecting = false;
@@ -122,7 +159,7 @@ const AttendanceCapture = () => {
       
       try {
         const detections = await faceapi
-          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.5 }))
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
           .withFaceLandmarks(true);
 
         setDetectedFaces(detections);
@@ -138,33 +175,47 @@ const AttendanceCapture = () => {
           if (ctx) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw bounding boxes with modern design
+            // Draw simple bounding boxes
             resizedDetections.forEach((detection) => {
               const box = detection.detection.box;
               
-              // Main box
-              ctx.strokeStyle = '#10b981';
+              // Main box with glow effect
+              ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
               ctx.lineWidth = 3;
               ctx.strokeRect(box.x, box.y, box.width, box.height);
               
               // Corner accents
-              const cornerSize = 20;
-              ctx.strokeStyle = '#10b981';
+              const cornerSize = 15;
+              ctx.strokeStyle = 'rgba(16, 185, 129, 1)';
               ctx.lineWidth = 4;
               
-              // Draw corners
-              [
-                [[box.x, box.y + cornerSize], [box.x, box.y], [box.x + cornerSize, box.y]],
-                [[box.x + box.width - cornerSize, box.y], [box.x + box.width, box.y], [box.x + box.width, box.y + cornerSize]],
-                [[box.x, box.y + box.height - cornerSize], [box.x, box.y + box.height], [box.x + cornerSize, box.y + box.height]],
-                [[box.x + box.width - cornerSize, box.y + box.height], [box.x + box.width, box.y + box.height], [box.x + box.width, box.y + box.height - cornerSize]]
-              ].forEach(corner => {
-                ctx.beginPath();
-                ctx.moveTo(corner[0][0], corner[0][1]);
-                ctx.lineTo(corner[1][0], corner[1][1]);
-                ctx.lineTo(corner[2][0], corner[2][1]);
-                ctx.stroke();
-              });
+              // Top-left
+              ctx.beginPath();
+              ctx.moveTo(box.x, box.y + cornerSize);
+              ctx.lineTo(box.x, box.y);
+              ctx.lineTo(box.x + cornerSize, box.y);
+              ctx.stroke();
+              
+              // Top-right
+              ctx.beginPath();
+              ctx.moveTo(box.x + box.width - cornerSize, box.y);
+              ctx.lineTo(box.x + box.width, box.y);
+              ctx.lineTo(box.x + box.width, box.y + cornerSize);
+              ctx.stroke();
+              
+              // Bottom-left
+              ctx.beginPath();
+              ctx.moveTo(box.x, box.y + box.height - cornerSize);
+              ctx.lineTo(box.x, box.y + box.height);
+              ctx.lineTo(box.x + cornerSize, box.y + box.height);
+              ctx.stroke();
+              
+              // Bottom-right
+              ctx.beginPath();
+              ctx.moveTo(box.x + box.width - cornerSize, box.y + box.height);
+              ctx.lineTo(box.x + box.width, box.y + box.height);
+              ctx.lineTo(box.x + box.width, box.y + box.height - cornerSize);
+              ctx.stroke();
             });
           }
         } else if (overlayCanvasRef.current) {
@@ -173,85 +224,16 @@ const AttendanceCapture = () => {
             ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
           }
         }
-
-        // Draw face previews on preview canvas
-        if (previewCanvasRef.current && detections.length > 0) {
-          const previewCanvas = previewCanvasRef.current;
-          const previewCtx = previewCanvas.getContext('2d');
-          if (previewCtx) {
-            const displaySize = { width: video.videoWidth, height: video.videoHeight };
-            const resizedDetections = faceapi.resizeResults(detections, displaySize);
-            
-            // Set canvas size for grid layout
-            const cols = Math.min(3, detections.length);
-            const rows = Math.ceil(detections.length / cols);
-            const cellSize = 120;
-            const padding = 10;
-            
-            previewCanvas.width = cols * (cellSize + padding);
-            previewCanvas.height = rows * (cellSize + padding);
-            
-            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-            
-            // Draw each detected face
-            resizedDetections.forEach((detection, index) => {
-              const box = detection.detection.box;
-              const col = index % cols;
-              const row = Math.floor(index / cols);
-              const x = col * (cellSize + padding);
-              const y = row * (cellSize + padding);
-              
-              // Draw cropped face with padding
-              const scaleFactor = Math.max(video.videoWidth / video.width, video.videoHeight / video.height);
-              const scaledBox = {
-                x: box.x / scaleFactor,
-                y: box.y / scaleFactor,
-                width: box.width / scaleFactor,
-                height: box.height / scaleFactor
-              };
-              
-              previewCtx.save();
-              previewCtx.fillStyle = 'rgba(16, 185, 129, 0.1)';
-              previewCtx.fillRect(x, y, cellSize, cellSize);
-              previewCtx.strokeStyle = '#10b981';
-              previewCtx.lineWidth = 2;
-              previewCtx.strokeRect(x, y, cellSize, cellSize);
-              
-              try {
-                previewCtx.drawImage(
-                  video,
-                  scaledBox.x,
-                  scaledBox.y,
-                  scaledBox.width,
-                  scaledBox.height,
-                  x + 5,
-                  y + 5,
-                  cellSize - 10,
-                  cellSize - 10
-                );
-              } catch (e) {
-                console.warn('Error drawing face preview:', e);
-              }
-              
-              previewCtx.restore();
-            });
-          }
-        } else if (previewCanvasRef.current) {
-          const previewCtx = previewCanvasRef.current.getContext('2d');
-          if (previewCtx) {
-            previewCtx.clearRect(0, 0, previewCanvasRef.current.width, previewCanvasRef.current.height);
-          }
-        }
       } catch (error) {
-        console.error('Face detection error:', error);
+        console.warn('Face detection error:', error);
       } finally {
         isDetecting = false;
       }
     };
 
     if (!result && !isProcessing && !capturedImage && modelStatus === 'ready') {
-      // Reduced frequency: 1 second interval for better performance
-      detectionIntervalRef.current = window.setInterval(runFaceDetection, 1000);
+      // Run detection at 0.5 FPS (2000ms) for better performance
+      detectionIntervalRef.current = window.setInterval(runFaceDetection, 2000);
     }
 
     return () => {
@@ -428,27 +410,15 @@ const AttendanceCapture = () => {
     <Card className="p-4 sm:p-6">
       <h3 className="text-lg font-medium mb-4">Facial Recognition</h3>
         <div className="space-y-4">
-        {/* Video Enhancement Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-muted rounded-lg">
-          <div className="flex items-center space-x-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">AI Video Enhancement</span>
-            {videoEnhancementService.isEnhancementAvailable() && (
-              <span className="text-xs text-green-600">Available</span>
-            )}
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEnhancementEnabled(!enhancementEnabled)}
-              disabled={isProcessing || isEnhancing}
-              className="text-xs sm:text-sm"
-            >
-              {enhancementEnabled ? 'Disable' : 'Enable'} Enhancement
-            </Button>
-            {isEnhancing && (
-              <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+        {/* Simple status indicator */}
+        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Camera className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Face Recognition Active</span>
+            {detectedFaces.length > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {detectedFaces.length} face{detectedFaces.length > 1 ? 's' : ''} detected
+              </Badge>
             )}
           </div>
         </div>
@@ -533,17 +503,17 @@ const AttendanceCapture = () => {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Main camera view */}
-            <div className="lg:col-span-2 relative">
+            <div className="relative">
               {/* Flash animation overlay */}
               {captureFlash && (
-                <div className="absolute inset-0 bg-white animate-[fade-out_0.3s_ease-out] z-10 pointer-events-none" />
+                <div className="absolute inset-0 bg-white animate-[fade-out_0.3s_ease-out] z-10 pointer-events-none rounded-xl" />
               )}
               
               {/* Captured image preview during processing */}
               {capturedImage && isProcessing && (
-                <div className="absolute inset-0 z-20 bg-background/95 flex items-center justify-center animate-fade-in">
+                <div className="absolute inset-0 z-20 bg-background/95 flex items-center justify-center animate-fade-in rounded-xl">
                   <div className="text-center space-y-4">
                     <img 
                       src={capturedImage} 
@@ -552,7 +522,7 @@ const AttendanceCapture = () => {
                     />
                     <div className="flex items-center justify-center space-x-2">
                       <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-                      <p className="text-muted-foreground">Processing captured image...</p>
+                      <p className="text-sm text-muted-foreground">Processing...</p>
                     </div>
                   </div>
                 </div>
@@ -577,51 +547,54 @@ const AttendanceCapture = () => {
                 
                 {/* Face detection indicator */}
                 {detectedFaces.length > 0 && !capturedImage && (
-                  <div className="absolute top-4 left-4 bg-green-500/90 text-white px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 animate-fade-in" style={{ zIndex: 6 }}>
-                    <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                    {detectedFaces.length} face{detectedFaces.length > 1 ? 's' : ''} detected
+                  <div className="absolute top-4 left-4 bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 animate-fade-in" style={{ zIndex: 6 }}>
+                    <div className="w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
+                    {detectedFaces.length} detected
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Face preview panel */}
-            <div className="lg:col-span-1">
+            {/* Photo preview panel */}
+            <div>
               <Card className="h-full">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Detected Faces
+                    <Camera className="h-4 w-4" />
+                    Photo Preview
                   </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    See how your photo will look
+                  </p>
                 </CardHeader>
                 <CardContent>
-                  {detectedFaces.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Users className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No faces detected yet</p>
-                      <p className="text-xs mt-1">Position yourself in front of the camera</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                        <span className="text-sm font-medium">Total Faces</span>
-                        <Badge variant="secondary" className="text-sm">
-                          {detectedFaces.length}
-                        </Badge>
-                      </div>
-                      
-                      <div className="relative rounded-lg border border-border overflow-hidden bg-muted/30">
-                        <canvas
+                  <div className="relative">
+                    {detectedFaces.length > 0 ? (
+                      <div className="space-y-3">
+                        <canvas 
                           ref={previewCanvasRef}
-                          className="w-full h-auto"
+                          className="w-full rounded-lg border-2 border-primary/20 shadow-sm"
+                          style={{ transform: 'scaleX(-1)' }}
                         />
+                        <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground">Ready to capture</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {detectedFaces.length} face{detectedFaces.length > 1 ? 's' : ''}
+                          </Badge>
+                        </div>
                       </div>
-                      
-                      <p className="text-xs text-muted-foreground text-center">
-                        Ready to capture when positioned correctly
-                      </p>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-6 border-2 border-dashed border-muted rounded-lg">
+                        <Camera className="h-16 w-16 text-muted-foreground/30 mb-4" />
+                        <p className="text-sm font-medium text-muted-foreground mb-2">
+                          Position yourself in the camera
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Your photo preview will appear here
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>
