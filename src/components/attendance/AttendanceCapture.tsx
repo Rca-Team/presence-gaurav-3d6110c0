@@ -106,17 +106,21 @@ const AttendanceCapture = () => {
     };
   }, [isModelLoading, enhancementEnabled, modelStatus]);
 
-  // Real-time face detection overlay
+  // Real-time face detection overlay - optimized for performance
   useEffect(() => {
+    let isDetecting = false;
+    
     const runFaceDetection = async () => {
-      if (!webcamRef.current || isProcessing || result || capturedImage) return;
+      if (!webcamRef.current || isProcessing || result || capturedImage || isDetecting) return;
 
       const video = webcamRef.current;
       if (video.readyState !== 4) return;
 
+      isDetecting = true;
+      
       try {
         const detections = await faceapi
-          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.5 }))
           .withFaceLandmarks(true);
 
         setDetectedFaces(detections);
@@ -169,11 +173,14 @@ const AttendanceCapture = () => {
         }
       } catch (error) {
         console.error('Face detection error:', error);
+      } finally {
+        isDetecting = false;
       }
     };
 
     if (!result && !isProcessing && !capturedImage && modelStatus === 'ready') {
-      detectionIntervalRef.current = window.setInterval(runFaceDetection, 300);
+      // Reduced frequency: 1 second interval for better performance
+      detectionIntervalRef.current = window.setInterval(runFaceDetection, 1000);
     }
 
     return () => {
