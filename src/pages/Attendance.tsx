@@ -4,7 +4,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { PageHeader } from '@/components/ui/page-header';
 import PageLayout from '@/components/layouts/PageLayout';
 import { loadOptimizedModels } from '@/services/face-recognition/OptimizedModelService';
-import AttendanceCapture from '@/components/attendance/AttendanceCapture';
+import MultipleFaceAttendanceCapture from '@/components/attendance/MultipleFaceAttendanceCapture';
 import MultipleAttendanceCapture from '@/components/attendance/MultipleAttendanceCapture';
 import AttendanceInstructions from '@/components/attendance/AttendanceInstructions';
 import AttendanceSidebar from '@/components/attendance/AttendanceSidebar';
@@ -77,7 +77,7 @@ const Attendance = () => {
         <TabsContent value="single" className="space-y-4 sm:space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             <div className="lg:col-span-2 space-y-4 sm:space-y-6 order-2 lg:order-1">
-              <AttendanceCapture />
+              <MultipleFaceAttendanceCapture />
             </div>
             <div className="space-y-4 sm:space-y-6 order-1 lg:order-2">
               <div className="block lg:hidden">
