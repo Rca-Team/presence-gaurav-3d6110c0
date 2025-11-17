@@ -29,6 +29,8 @@ const AttendanceCapture = () => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [captureFlash, setCaptureFlash] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
+  const [selectedPhoto, setSelectedPhoto] = useState<number | null>(null);
   const [livePreviewImage, setLivePreviewImage] = useState<string | null>(null);
   const [detectedFaces, setDetectedFaces] = useState<any[]>([]);
   const detectionIntervalRef = useRef<number>();
@@ -58,6 +60,8 @@ const AttendanceCapture = () => {
   const handleReset = () => {
     resetResult();
     setCapturedImage(null);
+    setCapturedPhotos([]);
+    setSelectedPhoto(null);
     setLivePreviewImage(null);
     setDetectedFaces([]);
   };
@@ -287,9 +291,6 @@ const AttendanceCapture = () => {
   const handleCapture = async () => {
     if (!webcamRef.current || isProcessing || isModelLoading) {
       console.log('Cannot capture: webcam not ready, processing in progress, or models still loading');
-      console.log('Webcam ref exists:', !!webcamRef.current);
-      console.log('Is processing:', isProcessing);
-      console.log('Is model loading:', isModelLoading);
       return;
     }
     
@@ -298,7 +299,7 @@ const AttendanceCapture = () => {
       setCaptureFlash(true);
       setTimeout(() => setCaptureFlash(false), 300);
       
-      console.log('Capturing instant image...');
+      console.log('Capturing photo for comparison...');
       
       // Capture instant image
       const canvas = document.createElement('canvas');
@@ -316,7 +317,7 @@ const AttendanceCapture = () => {
       if (enhancementEnabled && videoEnhancementService.isEnhancementAvailable()) {
         setIsEnhancing(true);
         try {
-          console.log('Enhancing captured image for better recognition...');
+          console.log('Enhancing captured image...');
           const enhancedCanvas = await videoEnhancementService.enhanceVideoFrame(webcamRef.current);
           imageToProcess = enhancedCanvas;
         } catch (enhanceError) {
@@ -327,6 +328,39 @@ const AttendanceCapture = () => {
       }
       
       const imageDataUrl = imageToProcess.toDataURL('image/jpeg', 0.95);
+      
+      // Add to photos array (max 3 photos)
+      setCapturedPhotos(prev => {
+        const newPhotos = [...prev, imageDataUrl];
+        return newPhotos.slice(-3); // Keep only last 3
+      });
+      
+      toast({
+        title: "Photo Captured",
+        description: "Take more photos or select the best one to process",
+      });
+    } catch (err) {
+      console.error('Capture error:', err);
+      toast({
+        title: "Capture Error",
+        description: "Failed to capture photo. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const handleProcessSelected = async () => {
+    if (selectedPhoto === null || !capturedPhotos[selectedPhoto]) {
+      toast({
+        title: "No Photo Selected",
+        description: "Please select a photo to process",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const imageDataUrl = capturedPhotos[selectedPhoto];
       setCapturedImage(imageDataUrl);
       
       // Create an image element from the captured data
@@ -336,8 +370,7 @@ const AttendanceCapture = () => {
         img.onload = () => resolve();
       });
       
-      console.log('Processing captured image...');
-      console.log('Image dimensions:', img.width, 'x', img.height);
+      console.log('Processing selected photo...');
       
       const recognitionResult = await processFace(img, {
         enableMultipleFaces: false,
@@ -502,6 +535,73 @@ const AttendanceCapture = () => {
               </div>
             )}
           </div>
+        ) : capturedPhotos.length > 0 ? (
+          <div className="space-y-6">
+            {/* Photo comparison grid */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Camera className="h-4 w-4" />
+                  Select Best Photo
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Compare your photos and select the best one
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  {capturedPhotos.map((photo, index) => (
+                    <div
+                      key={index}
+                      onClick={() => setSelectedPhoto(index)}
+                      className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                        selectedPhoto === index
+                          ? 'border-primary shadow-lg scale-105'
+                          : 'border-muted hover:border-primary/50'
+                      }`}
+                    >
+                      <img src={photo} alt={`Photo ${index + 1}`} className="w-full h-auto" />
+                      {selectedPhoto === index && (
+                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                        <p className="text-xs text-white font-medium">Photo {index + 1}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleProcessSelected}
+                    disabled={selectedPhoto === null || isProcessing}
+                    className="flex-1"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin mr-2"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      'Process Selected Photo'
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setCapturedPhotos([]);
+                      setSelectedPhoto(null);
+                    }}
+                    variant="outline"
+                  >
+                    Retake All
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Main camera view */}
@@ -509,23 +609,6 @@ const AttendanceCapture = () => {
               {/* Flash animation overlay */}
               {captureFlash && (
                 <div className="absolute inset-0 bg-white animate-[fade-out_0.3s_ease-out] z-10 pointer-events-none rounded-xl" />
-              )}
-              
-              {/* Captured image preview during processing */}
-              {capturedImage && isProcessing && (
-                <div className="absolute inset-0 z-20 bg-background/95 flex items-center justify-center animate-fade-in rounded-xl">
-                  <div className="text-center space-y-4">
-                    <img 
-                      src={capturedImage} 
-                      alt="Captured" 
-                      className="max-w-full max-h-[300px] rounded-lg shadow-lg animate-scale-in"
-                    />
-                    <div className="flex items-center justify-center space-x-2">
-                      <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-                      <p className="text-sm text-muted-foreground">Processing...</p>
-                    </div>
-                  </div>
-                </div>
               )}
               
               <div className="relative">
@@ -601,17 +684,10 @@ const AttendanceCapture = () => {
           </div>
         )}
         
-        {isModelLoading && (
+        {isModelLoading && !isProcessing && (
           <div className="flex flex-col items-center py-4">
             <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin mb-2"></div>
             <p className="text-muted-foreground">Loading face recognition models...</p>
-          </div>
-        )}
-        
-        {isProcessing && (
-          <div className="flex flex-col items-center py-4">
-            <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin mb-2"></div>
-            <p className="text-muted-foreground">Processing face recognition...</p>
           </div>
         )}
         
