@@ -47,16 +47,26 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ isLoading, activityData
           // Process the data to extract user info from device_info
           const processedData = await Promise.all(data.map(async (record) => {
             let name = 'Unknown';
+            let avatarUrl = null;
             
-            // Try to get name from device_info
+            // Try to get name and image from device_info
             if (record.device_info && typeof record.device_info === 'object' && !Array.isArray(record.device_info)) {
               const deviceInfo = record.device_info as { [key: string]: Json };
               if (deviceInfo.metadata && 
                   typeof deviceInfo.metadata === 'object' && 
-                  !Array.isArray(deviceInfo.metadata) &&
-                  'name' in deviceInfo.metadata) {
-                name = deviceInfo.metadata.name as string;
+                  !Array.isArray(deviceInfo.metadata)) {
+                if ('name' in deviceInfo.metadata) {
+                  name = deviceInfo.metadata.name as string;
+                }
+                if ('firebase_image_url' in deviceInfo.metadata) {
+                  avatarUrl = deviceInfo.metadata.firebase_image_url as string;
+                }
               }
+            }
+            
+            // Fallback to image_url if no firebase_image_url
+            if (!avatarUrl && record.image_url) {
+              avatarUrl = record.image_url;
             }
             
             // If no name in device_info, try to get from profiles table
@@ -74,7 +84,8 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ isLoading, activityData
             
             return {
               ...record,
-              displayName: name
+              displayName: name,
+              avatarUrl
             };
           }));
           
@@ -126,8 +137,9 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ isLoading, activityData
           </>
         ) : (
           activityData?.map((item: any, index: number) => {
-            // Extract name from processed data
+            // Extract name and avatar from processed data
             const name = item.displayName || 'Unknown';
+            const avatarUrl = item.avatarUrl || null;
             const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const status = item.status === 'present' ? 'Checked in' : 
                           item.status === 'late' ? 'Checked in (Late)' : 'Unauthorized';
@@ -136,15 +148,9 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ isLoading, activityData
               <div key={`${item.id}-${index}`} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                 <div className="flex items-center gap-3">
                   <Avatar className="w-10 h-10 border-2 border-border">
-                    <AvatarImage 
-                      src={item.image_url && item.image_url.startsWith('data:') 
-                        ? item.image_url 
-                        : item.image_url
-                          ? `https://tegpyalokurixuvgeuks.supabase.co/storage/v1/object/public/face-images/${item.image_url}`
-                          : undefined
-                      } 
-                      alt={name}
-                    />
+                    {avatarUrl ? (
+                      <AvatarImage src={avatarUrl} alt={name} />
+                    ) : null}
                     <AvatarFallback>
                       <User className="h-5 w-5" />
                     </AvatarFallback>
