@@ -59,7 +59,7 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
     console.log(`Found ${data.length} registered faces to compare against`);
     
     let bestMatch: any = null;
-    let bestDistance = 0.6; // Threshold distance (lower is better)
+    let bestDistance = 0.45; // Stricter threshold to prevent false positives (lower is better)
     
     // Compare the face descriptor against all registered faces
     for (const record of data) {
