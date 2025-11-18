@@ -3,9 +3,10 @@ import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { loadOptimizedModels, detectFacesOptimized } from '@/services/face-recognition/OptimizedModelService';
 import { detectMultipleFaces, processBatchAttendance, resetMultipleFaceTracking } from '@/services/face-recognition/MultipleFaceService';
+import { videoEnhancementService } from '@/services/ai/VideoEnhancementService';
 import * as faceapi from 'face-api.js';
 
 interface ProcessedFace {
@@ -27,6 +28,7 @@ const MultipleFaceAttendanceCapture = () => {
   const [processedResults, setProcessedResults] = useState<ProcessedFace[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [captureFlash, setCaptureFlash] = useState(false);
+  const [videoEnhanced, setVideoEnhanced] = useState(false);
   const detectionIntervalRef = useRef<number>();
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -36,10 +38,22 @@ const MultipleFaceAttendanceCapture = () => {
 
     const initialize = async () => {
       try {
-        await loadOptimizedModels();
+        // Load models and video enhancement in parallel
+        await Promise.all([
+          loadOptimizedModels(),
+          videoEnhancementService.initialize()
+        ]);
+        
         if (isMounted) {
           setModelStatus('ready');
+          setVideoEnhanced(true);
           await startCamera();
+          
+          toast({
+            title: "High-Accuracy Models Loaded",
+            description: "Using SSD MobileNetV1 for better detection accuracy",
+            duration: 3000,
+          });
         }
       } catch (err) {
         console.error('Error loading models:', err);
@@ -114,10 +128,12 @@ const MultipleFaceAttendanceCapture = () => {
       }
 
       try {
+        // Use high-accuracy detection with stricter thresholds
         const detections = await detectFacesOptimized(videoRef.current, {
           maxFaces: 50,
           classroomMode: true,
-          skipFrames: false
+          skipFrames: false,
+          scoreThreshold: 0.6 // Stricter threshold for better accuracy
         });
 
         setDetectedFaces(detections);
@@ -296,13 +312,28 @@ const MultipleFaceAttendanceCapture = () => {
   return (
     <Card className="p-6">
       <CardHeader className="px-0 pt-0">
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Multiple Face Attendance
-        </CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          Capture up to 50 faces simultaneously
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Multiple Face Attendance
+              <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Capture up to 50 faces simultaneously with high-accuracy detection
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="bg-primary/10">
+              SSD MobileNet
+            </Badge>
+            <Badge variant={modelStatus === 'ready' ? 'default' : 'secondary'}>
+              {modelStatus === 'loading' && 'Loading...'}
+              {modelStatus === 'ready' && 'Ready'}
+              {modelStatus === 'error' && 'Error'}
+            </Badge>
+          </div>
+        </div>
       </CardHeader>
 
       <CardContent className="px-0 pb-0">

@@ -34,7 +34,7 @@ let faceIdCounter = 0;
 const activeFaces = new Map<string, DetectedFace>();
 
 // Configuration
-const RECOGNITION_CONFIDENCE_THRESHOLD = 0.6;
+const RECOGNITION_CONFIDENCE_THRESHOLD = 0.55; // Stricter threshold for better accuracy (1 - 0.45 distance)
 const FACE_TRACKING_TIMEOUT = 10000; // 10 seconds
 const MAX_FACES_PER_FRAME = 60; // Increased for classroom scenarios (50+)
 
