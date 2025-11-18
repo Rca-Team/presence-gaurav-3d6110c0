@@ -3,11 +3,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2, Eye, ArrowLeft, ArrowRight, Smile, ArrowUp } from 'lucide-react';
+import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { loadOptimizedModels, detectFacesOptimized } from '@/services/face-recognition/OptimizedModelService';
 import { detectMultipleFaces, processBatchAttendance, resetMultipleFaceTracking } from '@/services/face-recognition/MultipleFaceService';
-import { getRandomChallenges, verifyChallengeResponse, Challenge, ChallengeResult } from '@/services/face-recognition/ChallengeResponseService';
-import { analyzeTextureForSpoofing } from '@/services/ai/FaceAnalysisService';
 import * as faceapi from 'face-api.js';
 
 interface ProcessedFace {
@@ -29,15 +27,8 @@ const MultipleFaceAttendanceCapture = () => {
   const [processedResults, setProcessedResults] = useState<ProcessedFace[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [captureFlash, setCaptureFlash] = useState(false);
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0);
-  const [challengeResults, setChallengeResults] = useState<ChallengeResult[]>([]);
-  const [challengeFrames, setChallengeFrames] = useState<ImageData[]>([]);
-  const [challengeDetections, setChallengeDetections] = useState<any[]>([]);
-  const [showChallengePrompt, setShowChallengePrompt] = useState(false);
   const detectionIntervalRef = useRef<number>();
   const streamRef = useRef<MediaStream | null>(null);
-  const challengeStartTimeRef = useRef<number>(0);
 
   // Load models and start camera
   useEffect(() => {
@@ -171,125 +162,7 @@ const MultipleFaceAttendanceCapture = () => {
     });
   };
 
-  const startChallengeVerification = () => {
-    // Initialize challenges
-    const newChallenges = getRandomChallenges(2);
-    setChallenges(newChallenges);
-    setCurrentChallengeIndex(0);
-    setChallengeResults([]);
-    setChallengeFrames([]);
-    setChallengeDetections([]);
-    setShowChallengePrompt(true);
-    challengeStartTimeRef.current = Date.now();
-
-    toast({
-      title: "Anti-Spoofing Verification",
-      description: "Please complete the challenges to verify you're real",
-    });
-  };
-
-  const collectChallengeData = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext('2d');
-    
-    if (!ctx) return;
-
-    ctx.drawImage(videoRef.current, 0, 0);
-    const frameData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
-    // Detect face with landmarks and expressions
-    const detection = await faceapi
-      .detectSingleFace(videoRef.current)
-      .withFaceLandmarks()
-      .withFaceExpressions();
-
-    if (detection) {
-      setChallengeFrames(prev => [...prev, frameData]);
-      setChallengeDetections(prev => [...prev, detection]);
-    }
-  };
-
-  useEffect(() => {
-    let intervalId: number;
-    
-    if (showChallengePrompt && currentChallengeIndex < challenges.length) {
-      // Collect data every 100ms during challenge
-      intervalId = window.setInterval(collectChallengeData, 100);
-
-      // Auto-verify after challenge duration
-      const currentChallenge = challenges[currentChallengeIndex];
-      const timeoutId = window.setTimeout(async () => {
-        await verifyCurrentChallenge();
-      }, currentChallenge.duration);
-
-      return () => {
-        clearInterval(intervalId);
-        clearTimeout(timeoutId);
-      };
-    }
-  }, [showChallengePrompt, currentChallengeIndex, challenges]);
-
-  const verifyCurrentChallenge = async () => {
-    const currentChallenge = challenges[currentChallengeIndex];
-    
-    // Get expressions for smile challenge
-    const expressions = challengeDetections
-      .filter(d => d.expressions)
-      .map(d => d.expressions);
-
-    const result = await verifyChallengeResponse(
-      currentChallenge,
-      challengeFrames,
-      challengeDetections,
-      expressions
-    );
-
-    setChallengeResults(prev => [...prev, result]);
-
-    if (result.verified) {
-      toast({
-        title: "Challenge Passed ✓",
-        description: result.details,
-      });
-    } else {
-      toast({
-        title: "Challenge Failed",
-        description: result.details + ". Please try again.",
-        variant: "destructive",
-      });
-    }
-
-    // Move to next challenge or finish
-    if (currentChallengeIndex < challenges.length - 1) {
-      setCurrentChallengeIndex(prev => prev + 1);
-      setChallengeFrames([]);
-      setChallengeDetections([]);
-    } else {
-      // All challenges complete
-      const allPassed = [...challengeResults, result].every(r => r.verified);
-      setShowChallengePrompt(false);
-      
-      if (allPassed) {
-        proceedWithCapture();
-      } else {
-        toast({
-          title: "Verification Failed",
-          description: "Please restart and complete all challenges correctly.",
-          variant: "destructive",
-        });
-        // Reset for retry
-        setChallenges([]);
-        setChallengeResults([]);
-        startFaceDetection();
-      }
-    }
-  };
-
-  const proceedWithCapture = async () => {
+  const handleCapture = async () => {
     if (detectedFaces.length === 0) {
       toast({
         title: "No Faces Detected",
@@ -321,36 +194,9 @@ const MultipleFaceAttendanceCapture = () => {
       
       setIsProcessing(true);
 
-      // Detect and recognize all faces with texture analysis
-      if (!videoRef.current || !canvasRef.current) {
+      // Detect and recognize all faces
+      if (!videoRef.current) {
         throw new Error('Video not available');
-      }
-
-      // Perform texture analysis on each detected face
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        
-        // Check texture for spoofing
-        for (const face of detectedFaces) {
-          const textureResult = analyzeTextureForSpoofing(canvas, face.detection);
-          
-          if (!textureResult.isRealSkin) {
-            toast({
-              title: "Spoofing Detected",
-              description: "Video playback or screen detected. Please use real faces only.",
-              variant: "destructive",
-            });
-            setIsCapturing(false);
-            setIsProcessing(false);
-            startFaceDetection();
-            return;
-          }
-        }
       }
 
       const result = await detectMultipleFaces(videoRef.current, {
@@ -503,35 +349,6 @@ const MultipleFaceAttendanceCapture = () => {
                       {detectedFaces.length} face{detectedFaces.length !== 1 ? 's' : ''} detected
                     </div>
                   )}
-
-                  {/* Challenge Prompt Overlay */}
-                  {showChallengePrompt && currentChallengeIndex < challenges.length && (
-                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
-                      <div className="bg-card border-2 border-primary rounded-2xl p-8 max-w-md text-center space-y-4 animate-in fade-in zoom-in duration-300">
-                        <div className="text-6xl mb-4">
-                          {challenges[currentChallengeIndex].type === 'blink' && <Eye className="h-16 w-16 mx-auto text-primary" />}
-                          {challenges[currentChallengeIndex].type === 'turnLeft' && <ArrowLeft className="h-16 w-16 mx-auto text-primary" />}
-                          {challenges[currentChallengeIndex].type === 'turnRight' && <ArrowRight className="h-16 w-16 mx-auto text-primary" />}
-                          {challenges[currentChallengeIndex].type === 'smile' && <Smile className="h-16 w-16 mx-auto text-primary" />}
-                          {challenges[currentChallengeIndex].type === 'nod' && <ArrowUp className="h-16 w-16 mx-auto text-primary" />}
-                        </div>
-                        <h3 className="text-2xl font-bold text-foreground">
-                          {challenges[currentChallengeIndex].instruction}
-                        </h3>
-                        <p className="text-muted-foreground">
-                          Challenge {currentChallengeIndex + 1} of {challenges.length}
-                        </p>
-                        <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-primary transition-all duration-100"
-                            style={{ 
-                              width: `${((Date.now() - challengeStartTimeRef.current) / challenges[currentChallengeIndex].duration) * 100}%` 
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Controls */}
@@ -543,7 +360,7 @@ const MultipleFaceAttendanceCapture = () => {
                   </div>
                   
                   <Button
-                    onClick={startChallengeVerification}
+                    onClick={handleCapture}
                     disabled={isCapturing || isProcessing || detectedFaces.length === 0}
                     size="lg"
                     className="gap-2"

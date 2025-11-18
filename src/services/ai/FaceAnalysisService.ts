@@ -78,70 +78,10 @@ export const assessFaceQuality = (
   return { score, blur, brightness, resolution };
 };
 
-// Advanced texture analysis to detect video playback vs real skin
-export const analyzeTextureForSpoofing = (
-  canvas: HTMLCanvasElement,
-  detection: faceapi.FaceDetection
-): { isRealSkin: boolean; textureScore: number; details: any } => {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return { isRealSkin: false, textureScore: 0, details: {} };
-
-  const box = detection.box;
-  const imageData = ctx.getImageData(box.x, box.y, box.width, box.height);
-  const data = imageData.data;
-
-  // Analyze skin texture patterns
-  let textureVariance = 0;
-  let colorConsistency = 0;
-  let microPatterns = 0;
-
-  // Calculate local texture variance (real skin has micro-variations)
-  for (let y = 1; y < imageData.height - 1; y++) {
-    for (let x = 1; x < imageData.width - 1; x++) {
-      const idx = (y * imageData.width + x) * 4;
-      const neighbors = [
-        data[idx - imageData.width * 4],
-        data[idx + imageData.width * 4],
-        data[idx - 4],
-        data[idx + 4]
-      ];
-      const avg = neighbors.reduce((a, b) => a + b, 0) / 4;
-      textureVariance += neighbors.reduce((sum, val) => sum + Math.abs(val - avg), 0);
-    }
-  }
-  textureVariance = textureVariance / (imageData.width * imageData.height);
-
-  // Check for unnatural color consistency (screens have too perfect pixels)
-  let colorGroups = new Map<string, number>();
-  for (let i = 0; i < data.length; i += 4) {
-    const colorKey = `${Math.floor(data[i] / 10)},${Math.floor(data[i + 1] / 10)},${Math.floor(data[i + 2] / 10)}`;
-    colorGroups.set(colorKey, (colorGroups.get(colorKey) || 0) + 1);
-  }
-  colorConsistency = colorGroups.size / (imageData.width * imageData.height);
-
-  // Detect micro-patterns (real skin has natural texture, screens have pixel patterns)
-  for (let i = 0; i < data.length - 8; i += 8) {
-    const diff = Math.abs(data[i] - data[i + 4]);
-    if (diff > 2 && diff < 20) microPatterns++;
-  }
-  microPatterns = microPatterns / (data.length / 8);
-
-  // Combined texture score (higher = more likely real skin)
-  const textureScore = (textureVariance / 50) * 0.4 + colorConsistency * 0.3 + microPatterns * 0.3;
-  const isRealSkin = textureScore > 0.35; // Threshold for real skin
-
-  return {
-    isRealSkin,
-    textureScore,
-    details: { textureVariance, colorConsistency, microPatterns }
-  };
-};
-
-// Advanced liveness detection with challenge verification
+// Liveness detection using simple heuristics
 export const detectLiveness = async (
   videoElement: HTMLVideoElement,
-  previousFrames: ImageData[] = [],
-  challengeCompleted?: { type: string; verified: boolean }
+  previousFrames: ImageData[] = []
 ): Promise<{ isLive: boolean; confidence: number; checks: any }> => {
   const canvas = document.createElement('canvas');
   canvas.width = videoElement.videoWidth;
@@ -156,54 +96,32 @@ export const detectLiveness = async (
   let eyeMovement = false;
   let headMovement = false;
   let blinkDetected = false;
-  let naturalMovement = false;
 
-  // Enhanced movement detection
-  if (previousFrames.length > 2) {
+  // Simple movement detection
+  if (previousFrames.length > 0) {
     const prevFrame = previousFrames[previousFrames.length - 1];
-    const prevFrame2 = previousFrames[previousFrames.length - 2];
-    
     let totalDiff = 0;
-    let movementPattern = 0;
     
     for (let i = 0; i < currentFrame.data.length; i += 4) {
       const diff = Math.abs(currentFrame.data[i] - prevFrame.data[i]);
-      const diff2 = Math.abs(prevFrame.data[i] - prevFrame2.data[i]);
       totalDiff += diff;
-      
-      // Check for natural movement patterns (not uniform like video playback)
-      if (Math.abs(diff - diff2) > 3) {
-        movementPattern++;
-      }
     }
     
     const avgDiff = totalDiff / (currentFrame.data.length / 4);
-    naturalMovement = movementPattern > (currentFrame.data.length / 8);
-    headMovement = avgDiff > 5 && naturalMovement;
-    eyeMovement = avgDiff > 2 && avgDiff < 15;
-    blinkDetected = avgDiff > 3 && avgDiff < 10;
+    headMovement = avgDiff > 5; // Threshold for movement
+    eyeMovement = avgDiff > 2 && avgDiff < 15; // Subtle movement for eyes
+    blinkDetected = avgDiff > 3; // Basic blink detection
   }
 
-  // Store frame for next comparison (keep last 10 frames for better analysis)
+  // Store frame for next comparison (keep last 5 frames)
   previousFrames.push(currentFrame);
-  if (previousFrames.length > 10) {
+  if (previousFrames.length > 5) {
     previousFrames.shift();
   }
 
-  // Challenge verification adds significant confidence
-  const challengeScore = challengeCompleted?.verified ? 0.5 : 0;
-  
-  const checks = { 
-    blinkDetected, 
-    eyeMovement, 
-    headMovement, 
-    naturalMovement,
-    challengeCompleted: challengeCompleted?.verified || false
-  };
-  
-  const movementScore = Object.values(checks).filter(Boolean).length / Object.keys(checks).length;
-  const confidence = (movementScore * 0.5) + challengeScore;
-  const isLive = confidence > 0.6; // Stricter threshold
+  const checks = { blinkDetected, eyeMovement, headMovement };
+  const confidence = Object.values(checks).filter(Boolean).length / 3;
+  const isLive = confidence > 0.3; // At least one positive check
 
   return { isLive, confidence, checks };
 };
