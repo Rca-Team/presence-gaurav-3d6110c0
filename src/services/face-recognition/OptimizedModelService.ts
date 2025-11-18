@@ -70,12 +70,12 @@ export async function loadOptimizedModels(): Promise<void> {
   isLoadingOptimizedModels = true;
 
   try {
-    console.log('Loading optimized face recognition models...');
+    console.log('Loading optimized face recognition models with high-accuracy models...');
     
-    // Use fallback models if tiny detector is corrupted
+    // Use more powerful models for better accuracy (SSD MobileNetV1 + full landmarks)
     const preferredModels = [
-      { net: faceapi.nets.tinyFaceDetector, name: 'TinyFaceDetector', fallback: faceapi.nets.ssdMobilenetv1 },
-      { net: faceapi.nets.faceLandmark68TinyNet, name: 'TinyFaceLandmark', fallback: faceapi.nets.faceLandmark68Net },
+      { net: faceapi.nets.ssdMobilenetv1, name: 'SSD_MobileNetV1', fallback: faceapi.nets.tinyFaceDetector },
+      { net: faceapi.nets.faceLandmark68Net, name: 'FaceLandmark68', fallback: faceapi.nets.faceLandmark68TinyNet },
       { net: faceapi.nets.faceRecognitionNet, name: 'FaceRecognition', fallback: null }
     ];
 
@@ -146,22 +146,22 @@ export async function detectFacesOptimized(
     return cached.detection;
   }
 
-  // Classroom mode: ultra-optimized settings for 50+ faces
+  // Use SSD MobileNetV1 for better accuracy (classroom mode settings)
   const detectionOptions = options.classroomMode 
-    ? new faceapi.TinyFaceDetectorOptions({
-        inputSize: 416, // Higher resolution for better accuracy with many faces
-        scoreThreshold: 0.3 // Lower threshold to catch more faces
+    ? new faceapi.SsdMobilenetv1Options({
+        minConfidence: 0.5, // Stricter confidence for better accuracy
+        maxResults: options.maxFaces || 60
       })
-    : new faceapi.TinyFaceDetectorOptions({
-        inputSize: options.inputSize || 320,
-        scoreThreshold: options.scoreThreshold || 0.4
+    : new faceapi.SsdMobilenetv1Options({
+        minConfidence: options.scoreThreshold || 0.6, // Higher confidence = more accurate
+        maxResults: options.maxFaces || 5
       });
 
   try {
-    // Detect multiple faces with optimized pipeline
+    // Detect multiple faces with high-accuracy pipeline
     const detections = await faceapi
       .detectAllFaces(input, detectionOptions)
-      .withFaceLandmarks(true) // Use tiny landmarks
+      .withFaceLandmarks() // Use full landmarks for better accuracy
       .withFaceDescriptors();
 
     // In classroom mode, process all detected faces up to the limit
