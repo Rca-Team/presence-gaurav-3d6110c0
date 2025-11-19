@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { loadOptimizedModels, detectFacesOptimized } from '@/services/face-recognition/OptimizedModelService';
 import { detectMultipleFaces, processBatchAttendance, resetMultipleFaceTracking } from '@/services/face-recognition/MultipleFaceService';
-import { videoEnhancementService } from '@/services/ai/VideoEnhancementService';
 import * as faceapi from 'face-api.js';
 
 interface ProcessedFace {
@@ -22,6 +21,7 @@ const MultipleFaceAttendanceCapture = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [previewModelReady, setPreviewModelReady] = useState(false);
   const [detectedFaces, setDetectedFaces] = useState<any[]>([]);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -32,35 +32,57 @@ const MultipleFaceAttendanceCapture = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const lastDetectionTime = useRef<number>(0);
 
-  // Load models and start camera with deferred execution
+  // Load models progressively: fast preview model first, then high-accuracy model
   useEffect(() => {
     let isMounted = true;
 
     const initialize = async () => {
       try {
-        // Use setTimeout to defer heavy operations and prevent UI freeze
+        // Step 1: Load fast TinyFaceDetector for instant preview
         setTimeout(async () => {
           if (!isMounted) return;
           
-          await loadOptimizedModels();
+          console.log('Loading TinyFaceDetector for preview...');
+          await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
           
           if (isMounted) {
-            setModelStatus('ready');
+            setPreviewModelReady(true);
+            console.log('Preview model ready');
             
-            // Defer camera start to next frame
+            // Start camera immediately with preview model
             requestAnimationFrame(async () => {
               if (isMounted) {
                 await startCamera();
                 
                 toast({
-                  title: "High-Accuracy Models Ready",
-                  description: "SSD MobileNetV1 loaded",
+                  title: "Preview Ready",
+                  description: "Loading high-accuracy models in background...",
                   duration: 2000,
                 });
               }
             });
           }
         }, 100);
+
+        // Step 2: Load high-accuracy models in background
+        setTimeout(async () => {
+          if (!isMounted) return;
+          
+          console.log('Loading SSD MobileNet for high-accuracy processing...');
+          await loadOptimizedModels();
+          
+          if (isMounted) {
+            setModelStatus('ready');
+            console.log('High-accuracy models ready');
+            
+            toast({
+              title: "High-Accuracy Ready",
+              description: "SSD MobileNetV1 loaded for capture",
+              duration: 2000,
+            });
+          }
+        }, 500);
+        
       } catch (err) {
         console.error('Error loading models:', err);
         if (isMounted) {
@@ -135,8 +157,8 @@ const MultipleFaceAttendanceCapture = () => {
       }
 
       const now = performance.now();
-      // Only detect every 1500ms to prevent lag
-      if (now - lastDetectionTime.current < 1500) {
+      // Fast preview: detect every 200ms with TinyFaceDetector
+      if (now - lastDetectionTime.current < 200) {
         detectionFrameRef.current = requestAnimationFrame(detectFaces);
         return;
       }
@@ -144,16 +166,21 @@ const MultipleFaceAttendanceCapture = () => {
       lastDetectionTime.current = now;
 
       try {
-        // Use optimized detection with aggressive performance settings
-        const detections = await detectFacesOptimized(videoRef.current, {
-          maxFaces: 15, // Further limit for smoother performance
-          classroomMode: false,
-          skipFrames: true,
-          scoreThreshold: 0.65 // Higher threshold for faster processing
-        });
+        // Use super-fast TinyFaceDetector for preview
+        const detections = await faceapi
+          .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({
+            inputSize: 224, // Smaller for speed
+            scoreThreshold: 0.5
+          }));
 
-        setDetectedFaces(detections);
-        drawFaceBoxes(detections);
+        // Convert to expected format
+        const formattedDetections = detections.map((det) => ({
+          detection: det,
+          confidence: det.score
+        }));
+
+        setDetectedFaces(formattedDetections);
+        drawFaceBoxes(formattedDetections);
       } catch (err) {
         console.error('Face detection error:', err);
       }
@@ -212,6 +239,15 @@ const MultipleFaceAttendanceCapture = () => {
       return;
     }
 
+    if (modelStatus !== 'ready') {
+      toast({
+        title: "Please Wait",
+        description: "High-accuracy models are still loading...",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsCapturing(true);
     
     // Stop detection during capture
@@ -225,8 +261,8 @@ const MultipleFaceAttendanceCapture = () => {
 
     try {
       toast({
-        title: "Capturing...",
-        description: `Processing ${detectedFaces.length} detected faces...`,
+        title: "Capturing with High Accuracy",
+        description: `Using SSD MobileNet to process ${detectedFaces.length} faces...`,
       });
 
       // Wait for animation
@@ -234,11 +270,12 @@ const MultipleFaceAttendanceCapture = () => {
       
       setIsProcessing(true);
 
-      // Detect and recognize all faces
+      // Detect and recognize all faces with SSD MobileNet (high accuracy)
       if (!videoRef.current) {
         throw new Error('Video not available');
       }
 
+      console.log('Using SSD MobileNet for high-accuracy detection...');
       const result = await detectMultipleFaces(videoRef.current, {
         enableRecognition: true,
         enableTracking: false,
@@ -348,12 +385,12 @@ const MultipleFaceAttendanceCapture = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            <Badge variant="outline" className="bg-primary/10">
-              SSD MobileNet
+            <Badge variant={previewModelReady ? 'default' : 'secondary'} className="bg-green-500 text-white">
+              {previewModelReady ? 'Preview: Fast' : 'Loading Preview'}
             </Badge>
-            <Badge variant={modelStatus === 'ready' ? 'default' : 'secondary'}>
-              {modelStatus === 'loading' && 'Loading...'}
-              {modelStatus === 'ready' && 'Ready'}
+            <Badge variant={modelStatus === 'ready' ? 'default' : 'secondary'} className="bg-blue-500 text-white">
+              {modelStatus === 'loading' && 'Capture: Loading'}
+              {modelStatus === 'ready' && 'Capture: SSD'}
               {modelStatus === 'error' && 'Error'}
             </Badge>
           </div>
@@ -416,14 +453,19 @@ const MultipleFaceAttendanceCapture = () => {
                   
                   <Button
                     onClick={handleCapture}
-                    disabled={isCapturing || isProcessing || detectedFaces.length === 0}
+                    disabled={isCapturing || isProcessing || detectedFaces.length === 0 || modelStatus !== 'ready'}
                     size="lg"
                     className="gap-2"
                   >
                     {isProcessing ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        Processing...
+                        High-Accuracy Processing...
+                      </>
+                    ) : modelStatus !== 'ready' ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Loading SSD Model...
                       </>
                     ) : (
                       <>
