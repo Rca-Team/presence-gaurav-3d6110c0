@@ -128,11 +128,11 @@ const MultipleFaceAttendanceCapture = () => {
       }
 
       try {
-        // Use high-accuracy detection with stricter thresholds
+        // Use optimized detection with frame skipping and lower face count for preview
         const detections = await detectFacesOptimized(videoRef.current, {
-          maxFaces: 50,
-          classroomMode: true,
-          skipFrames: false,
+          maxFaces: 20, // Limit preview to 20 faces for better performance
+          classroomMode: false, // Disable classroom mode for preview
+          skipFrames: true, // Enable frame skipping for better performance
           scoreThreshold: 0.6 // Stricter threshold for better accuracy
         });
 
@@ -143,8 +143,8 @@ const MultipleFaceAttendanceCapture = () => {
       }
     };
 
-    // Detect faces every 500ms for responsive feedback
-    detectionIntervalRef.current = window.setInterval(detectFaces, 500);
+    // Detect faces every 1000ms (1 second) to reduce lag
+    detectionIntervalRef.current = window.setInterval(detectFaces, 1000);
   };
 
   const drawFaceBoxes = (detections: any[]) => {
@@ -153,15 +153,21 @@ const MultipleFaceAttendanceCapture = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Only resize canvas if dimensions changed
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
     
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    detections.forEach((detection, index) => {
+    // Limit drawing to first 20 faces for performance
+    const facesToDraw = detections.slice(0, 20);
+    
+    facesToDraw.forEach((detection, index) => {
       const box = detection.detection.box;
       
       // Draw bounding box
