@@ -20,22 +20,7 @@ const Attendance = () => {
   const [activeTab, setActiveTab] = useState('single');
   const { toast } = useToast();
   
-  useEffect(() => {
-    const initModels = async () => {
-      try {
-        await loadOptimizedModels();
-      } catch (err) {
-        console.error('Error loading face recognition models:', err);
-        toast({
-          title: "Model Loading Error",
-          description: "Failed to load face recognition models. Please try again later.",
-          variant: "destructive",
-        });
-      }
-    };
-    
-    initModels();
-  }, [toast]);
+  // Models are loaded by the component itself to prevent blocking
   
   return (
     <PageLayout className="school-gradient-bg">
