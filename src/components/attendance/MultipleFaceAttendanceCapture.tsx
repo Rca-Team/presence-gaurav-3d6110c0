@@ -28,33 +28,39 @@ const MultipleFaceAttendanceCapture = () => {
   const [processedResults, setProcessedResults] = useState<ProcessedFace[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [captureFlash, setCaptureFlash] = useState(false);
-  const [videoEnhanced, setVideoEnhanced] = useState(false);
-  const detectionIntervalRef = useRef<number>();
+  const detectionFrameRef = useRef<number>();
   const streamRef = useRef<MediaStream | null>(null);
+  const lastDetectionTime = useRef<number>(0);
 
-  // Load models and start camera
+  // Load models and start camera with deferred execution
   useEffect(() => {
     let isMounted = true;
 
     const initialize = async () => {
       try {
-        // Load models and video enhancement in parallel
-        await Promise.all([
-          loadOptimizedModels(),
-          videoEnhancementService.initialize()
-        ]);
-        
-        if (isMounted) {
-          setModelStatus('ready');
-          setVideoEnhanced(true);
-          await startCamera();
+        // Use setTimeout to defer heavy operations and prevent UI freeze
+        setTimeout(async () => {
+          if (!isMounted) return;
           
-          toast({
-            title: "High-Accuracy Models Loaded",
-            description: "Using SSD MobileNetV1 for better detection accuracy",
-            duration: 3000,
-          });
-        }
+          await loadOptimizedModels();
+          
+          if (isMounted) {
+            setModelStatus('ready');
+            
+            // Defer camera start to next frame
+            requestAnimationFrame(async () => {
+              if (isMounted) {
+                await startCamera();
+                
+                toast({
+                  title: "High-Accuracy Models Ready",
+                  description: "SSD MobileNetV1 loaded",
+                  duration: 2000,
+                });
+              }
+            });
+          }
+        }, 100);
       } catch (err) {
         console.error('Error loading models:', err);
         if (isMounted) {
@@ -73,8 +79,8 @@ const MultipleFaceAttendanceCapture = () => {
     return () => {
       isMounted = false;
       stopCamera();
-      if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
+      if (detectionFrameRef.current) {
+        cancelAnimationFrame(detectionFrameRef.current);
       }
     };
   }, []);
@@ -118,22 +124,32 @@ const MultipleFaceAttendanceCapture = () => {
   };
 
   const startFaceDetection = () => {
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
+    if (detectionFrameRef.current) {
+      cancelAnimationFrame(detectionFrameRef.current);
     }
 
     const detectFaces = async () => {
       if (!videoRef.current || !canvasRef.current || isCapturing || isProcessing || showResults) {
+        detectionFrameRef.current = requestAnimationFrame(detectFaces);
         return;
       }
 
+      const now = performance.now();
+      // Only detect every 1500ms to prevent lag
+      if (now - lastDetectionTime.current < 1500) {
+        detectionFrameRef.current = requestAnimationFrame(detectFaces);
+        return;
+      }
+
+      lastDetectionTime.current = now;
+
       try {
-        // Use optimized detection with frame skipping and lower face count for preview
+        // Use optimized detection with aggressive performance settings
         const detections = await detectFacesOptimized(videoRef.current, {
-          maxFaces: 20, // Limit preview to 20 faces for better performance
-          classroomMode: false, // Disable classroom mode for preview
-          skipFrames: true, // Enable frame skipping for better performance
-          scoreThreshold: 0.6 // Stricter threshold for better accuracy
+          maxFaces: 15, // Further limit for smoother performance
+          classroomMode: false,
+          skipFrames: true,
+          scoreThreshold: 0.65 // Higher threshold for faster processing
         });
 
         setDetectedFaces(detections);
@@ -141,10 +157,12 @@ const MultipleFaceAttendanceCapture = () => {
       } catch (err) {
         console.error('Face detection error:', err);
       }
+
+      detectionFrameRef.current = requestAnimationFrame(detectFaces);
     };
 
-    // Detect faces every 1000ms (1 second) to reduce lag
-    detectionIntervalRef.current = window.setInterval(detectFaces, 1000);
+    // Start the detection loop
+    detectionFrameRef.current = requestAnimationFrame(detectFaces);
   };
 
   const drawFaceBoxes = (detections: any[]) => {
@@ -197,8 +215,8 @@ const MultipleFaceAttendanceCapture = () => {
     setIsCapturing(true);
     
     // Stop detection during capture
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
+    if (detectionFrameRef.current) {
+      cancelAnimationFrame(detectionFrameRef.current);
     }
 
     // Flash animation
