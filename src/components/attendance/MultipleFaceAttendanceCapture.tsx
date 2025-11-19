@@ -319,16 +319,27 @@ const MultipleFaceAttendanceCapture = () => {
       console.error('Capture error:', err);
       setIsProcessing(false);
       setIsCapturing(false);
+      
+      // Check if camera is still active after error
+      const isStreamActive = streamRef.current?.active && 
+                            videoRef.current?.srcObject === streamRef.current;
+      
+      if (!isStreamActive) {
+        console.log('Camera stream lost after error, restarting...');
+        await startCamera();
+      } else {
+        startFaceDetection();
+      }
+      
       toast({
         title: "Processing Error",
         description: err instanceof Error ? err.message : "Failed to process faces",
         variant: "destructive",
       });
-      startFaceDetection();
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setShowResults(false);
     setProcessedResults([]);
     setDetectedFaces([]);
@@ -343,8 +354,21 @@ const MultipleFaceAttendanceCapture = () => {
       }
     }
     
-    // Restart detection
-    startFaceDetection();
+    // Check if camera stream is still active
+    const isStreamActive = streamRef.current?.active && 
+                          videoRef.current?.srcObject === streamRef.current &&
+                          videoRef.current?.readyState >= 2;
+    
+    if (!isStreamActive) {
+      console.log('Camera stream inactive, restarting camera...');
+      // Stop any existing stream
+      stopCamera();
+      // Restart camera
+      await startCamera();
+    } else {
+      // Just restart detection if camera is still active
+      startFaceDetection();
+    }
     
     toast({
       title: "Reset Complete",
