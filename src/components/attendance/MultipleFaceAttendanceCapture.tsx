@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2, Sparkles } from 'lucide-react';
-import { loadOptimizedModels, detectFacesOptimized } from '@/services/face-recognition/OptimizedModelService';
-import { detectMultipleFaces, processBatchAttendance, resetMultipleFaceTracking } from '@/services/face-recognition/MultipleFaceService';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { resetMultipleFaceTracking } from '@/services/face-recognition/MultipleFaceService';
+import { supabase } from '@/integrations/supabase/client';
 import * as faceapi from 'face-api.js';
 
 interface ProcessedFace {
@@ -64,12 +65,14 @@ const MultipleFaceAttendanceCapture = () => {
           }
         }, 100);
 
-        // Step 2: Load high-accuracy models in background
+        // Step 2: Load MTCNN for high-accuracy multiple face processing
         setTimeout(async () => {
           if (!isMounted) return;
           
-          console.log('Loading SSD MobileNet for high-accuracy processing...');
-          await loadOptimizedModels();
+          console.log('Loading MTCNN for high-accuracy multiple face processing...');
+          await faceapi.nets.mtcnn.loadFromUri('/models');
+          await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+          await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
           
           if (isMounted) {
             setModelStatus('ready');
@@ -77,7 +80,7 @@ const MultipleFaceAttendanceCapture = () => {
             
             toast({
               title: "High-Accuracy Ready",
-              description: "SSD MobileNetV1 loaded for capture",
+              description: "MTCNN loaded for capture",
               duration: 2000,
             });
           }
@@ -262,7 +265,7 @@ const MultipleFaceAttendanceCapture = () => {
     try {
       toast({
         title: "Capturing with High Accuracy",
-        description: `Using SSD MobileNet to process ${detectedFaces.length} faces...`,
+        description: `Using MTCNN to process ${detectedFaces.length} faces...`,
       });
 
       // Wait for animation
@@ -275,36 +278,109 @@ const MultipleFaceAttendanceCapture = () => {
         throw new Error('Video not available');
       }
 
-      console.log('Using SSD MobileNet for high-accuracy detection...');
-      const result = await detectMultipleFaces(videoRef.current, {
-        enableRecognition: true,
-        enableTracking: false,
-        maxFaces: 50,
-        classroomMode: true
-      });
+      console.log('Using MTCNN for high-accuracy detection...');
+      
+      // Use MTCNN for high accuracy multiple face detection
+      const detections = await faceapi
+        .detectAllFaces(videoRef.current, new faceapi.MtcnnOptions({ minFaceSize: 20 }))
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+      
+      console.log(`MTCNN detected ${detections.length} faces`);
+      
+      // Get all registered faces for comparison
+      const { data: registeredFaces } = await supabase
+        .from('attendance_records')
+        .select('id, face_descriptor, device_info, image_url')
+        .filter('device_info->registration', 'eq', 'true');
+      
+      console.log(`Found ${registeredFaces?.length || 0} registered faces`);
+      
+      const processedFaces = [];
+      
+      for (const detection of detections) {
+        let bestMatch = null;
+        let bestDistance = 0.6; // Threshold
+        
+        // Compare with registered faces
+        if (registeredFaces && registeredFaces.length > 0) {
+          for (const registered of registeredFaces) {
+            if (registered.face_descriptor) {
+              const descriptorArray = JSON.parse(registered.face_descriptor);
+              const registeredDescriptor = new Float32Array(descriptorArray);
+              const distance = faceapi.euclideanDistance(detection.descriptor, registeredDescriptor);
+              
+              if (distance < bestDistance) {
+                bestDistance = distance;
+                const deviceInfo = registered.device_info as any;
+                const metadata = deviceInfo?.metadata || {};
+                bestMatch = {
+                  id: registered.id,
+                  name: metadata.name || 'Unknown',
+                  firebase_image_url: metadata.firebase_image_url || registered.image_url
+                };
+              }
+            }
+          }
+        }
+        
+        processedFaces.push({
+          detection: detection.detection,
+          recognition: bestMatch ? {
+            recognized: true,
+            employee: {
+              name: bestMatch.name || 'Unknown',
+              firebase_image_url: bestMatch.firebase_image_url
+            },
+            confidence: 1 - bestDistance
+          } : null,
+          confidence: detection.detection.score,
+          id: Math.random().toString(36).substr(2, 9)
+        });
+      }
+      
+      const result = { faces: processedFaces };
 
-      // Process the results
-      const processed: ProcessedFace[] = result.faces.map((face) => {
+      // Process the results and save to database
+      const processed: ProcessedFace[] = [];
+      let recognizedCount = 0;
+      
+      for (const face of result.faces) {
         if (face.recognition?.recognized && face.recognition.employee) {
-          return {
+          // Save attendance record
+          await supabase.from('attendance_records').insert({
+            user_id: face.recognition.employee.id,
+            status: 'present',
+            confidence_score: face.recognition.confidence,
+            device_info: JSON.stringify({
+              name: face.recognition.employee.name,
+              metadata: { name: face.recognition.employee.name }
+            }),
+            image_url: face.recognition.employee.firebase_image_url
+          });
+          
+          processed.push({
             id: face.id,
             name: face.recognition.employee.name,
             status: 'present',
             confidence: face.recognition.confidence,
             imageUrl: face.recognition.employee.firebase_image_url
-          };
+          });
+          recognizedCount++;
         } else {
-          return {
+          processed.push({
             id: face.id,
             name: 'Unknown Person',
             status: 'unrecognized',
             confidence: face.confidence
-          };
+          });
         }
-      });
-
-      // Process batch attendance
-      const batchResult = await processBatchAttendance(result.faces);
+      }
+      
+      const batchResult = {
+        processed: processed.length,
+        recognized: recognizedCount
+      };
 
       setProcessedResults(processed);
       setShowResults(true);
@@ -414,7 +490,7 @@ const MultipleFaceAttendanceCapture = () => {
             </Badge>
             <Badge variant={modelStatus === 'ready' ? 'default' : 'secondary'} className="bg-blue-500 text-white">
               {modelStatus === 'loading' && 'Capture: Loading'}
-              {modelStatus === 'ready' && 'Capture: SSD'}
+              {modelStatus === 'ready' && 'Capture: MTCNN'}
               {modelStatus === 'error' && 'Error'}
             </Badge>
           </div>
@@ -489,7 +565,7 @@ const MultipleFaceAttendanceCapture = () => {
                     ) : modelStatus !== 'ready' ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        Loading SSD Model...
+                        Loading MTCNN...
                       </>
                     ) : (
                       <>
@@ -506,33 +582,33 @@ const MultipleFaceAttendanceCapture = () => {
                 <div className="space-y-4">
                   {/* Summary */}
                   <div className="grid grid-cols-3 gap-4">
-                    <Card className="p-4 bg-green-50 border-green-200">
+                    <Card className="p-4 bg-primary/10 border-primary/20">
                       <div className="text-center">
-                        <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-green-600">
+                        <CheckCircle className="h-8 w-8 text-primary mx-auto mb-2" />
+                        <p className="text-2xl font-bold text-primary">
                           {processedResults.filter(r => r.status === 'present').length}
                         </p>
-                        <p className="text-xs text-green-700">Present</p>
+                        <p className="text-xs text-muted-foreground">Present</p>
                       </div>
                     </Card>
                     
-                    <Card className="p-4 bg-yellow-50 border-yellow-200">
+                    <Card className="p-4 bg-yellow-500/10 border-yellow-500/20">
                       <div className="text-center">
-                        <AlertCircle className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-yellow-600">
+                        <AlertCircle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
+                        <p className="text-2xl font-bold text-yellow-500">
                           {processedResults.filter(r => r.status === 'late').length}
                         </p>
-                        <p className="text-xs text-yellow-700">Late</p>
+                        <p className="text-xs text-muted-foreground">Late</p>
                       </div>
                     </Card>
                     
-                    <Card className="p-4 bg-red-50 border-red-200">
+                    <Card className="p-4 bg-destructive/10 border-destructive/20">
                       <div className="text-center">
-                        <XCircle className="h-8 w-8 text-red-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-red-600">
+                        <XCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+                        <p className="text-2xl font-bold text-destructive">
                           {processedResults.filter(r => r.status === 'unrecognized').length}
                         </p>
-                        <p className="text-xs text-red-700">Unrecognized</p>
+                        <p className="text-xs text-muted-foreground">Unrecognized</p>
                       </div>
                     </Card>
                   </div>
@@ -542,14 +618,22 @@ const MultipleFaceAttendanceCapture = () => {
                     {processedResults.map((result, index) => (
                       <div
                         key={result.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border ${getStatusColor(result.status)}`}
+                        className="flex items-center justify-between p-3 rounded-lg bg-card border border-border hover:bg-accent/50 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <span className="font-medium">#{index + 1}</span>
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-muted-foreground font-medium text-sm">
+                            #{index + 1}
+                          </div>
+                          {result.imageUrl && (
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={result.imageUrl} alt={result.name} />
+                              <AvatarFallback>{result.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                          )}
                           <div>
-                            <p className="font-medium">{result.name}</p>
+                            <p className="font-medium text-foreground">{result.name}</p>
                             {result.confidence && (
-                              <p className="text-xs opacity-70">
+                              <p className="text-xs text-muted-foreground">
                                 Confidence: {(result.confidence * 100).toFixed(1)}%
                               </p>
                             )}
@@ -557,7 +641,10 @@ const MultipleFaceAttendanceCapture = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           {getStatusIcon(result.status)}
-                          <Badge variant="outline" className="capitalize">
+                          <Badge 
+                            variant={result.status === 'present' ? 'default' : result.status === 'late' ? 'secondary' : 'destructive'}
+                            className="capitalize"
+                          >
                             {result.status}
                           </Badge>
                         </div>
