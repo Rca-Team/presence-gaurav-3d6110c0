@@ -64,23 +64,20 @@ const MultipleFaceAttendanceCapture = () => {
           }
         }, 100);
 
-        // Step 2: Load high-accuracy models (MTCNN + recognition models) in background
+        // Step 2: Load high-accuracy models in background
         setTimeout(async () => {
           if (!isMounted) return;
           
-          console.log('Loading MTCNN (high-accuracy) for processing...');
-          
-          // Load MTCNN - high accuracy face detector (comparable to RetinaFace)
-          await faceapi.nets.mtcnn.loadFromUri('/models');
-          await loadOptimizedModels(); // Load recognition models
+          console.log('Loading SSD MobileNet for high-accuracy processing...');
+          await loadOptimizedModels();
           
           if (isMounted) {
             setModelStatus('ready');
-            console.log('High-accuracy models (MTCNN) ready');
+            console.log('High-accuracy models ready');
             
             toast({
               title: "High-Accuracy Ready",
-              description: "MTCNN model loaded for precise detection",
+              description: "SSD MobileNetV1 loaded for capture",
               duration: 2000,
             });
           }
@@ -278,27 +275,7 @@ const MultipleFaceAttendanceCapture = () => {
         throw new Error('Video not available');
       }
 
-      console.log('Using MTCNN for high-accuracy detection...');
-      
-      // Use MTCNN for high-accuracy face detection
-      const detections = await faceapi
-        .detectAllFaces(videoRef.current, new faceapi.MtcnnOptions({
-          minFaceSize: 20,
-          scaleFactor: 0.709
-        }))
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-
-      // Convert MTCNN detections to our format
-      const facesData = detections.map((detection, index) => ({
-        id: `face_${index}_${Date.now()}`,
-        detection: detection.detection,
-        landmarks: detection.landmarks,
-        descriptor: detection.descriptor,
-        confidence: detection.detection.score
-      }));
-
-      // Process through our recognition service
+      console.log('Using SSD MobileNet for high-accuracy detection...');
       const result = await detectMultipleFaces(videoRef.current, {
         enableRecognition: true,
         enableTracking: false,
@@ -332,7 +309,6 @@ const MultipleFaceAttendanceCapture = () => {
       setProcessedResults(processed);
       setShowResults(true);
       setIsProcessing(false);
-      setIsCapturing(false); // Reset capturing state
 
       toast({
         title: "Processing Complete",
@@ -438,7 +414,7 @@ const MultipleFaceAttendanceCapture = () => {
             </Badge>
             <Badge variant={modelStatus === 'ready' ? 'default' : 'secondary'} className="bg-blue-500 text-white">
               {modelStatus === 'loading' && 'Capture: Loading'}
-              {modelStatus === 'ready' && 'Capture: MTCNN'}
+              {modelStatus === 'ready' && 'Capture: SSD'}
               {modelStatus === 'error' && 'Error'}
             </Badge>
           </div>
@@ -513,7 +489,7 @@ const MultipleFaceAttendanceCapture = () => {
                     ) : modelStatus !== 'ready' ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        Loading MTCNN Model...
+                        Loading SSD Model...
                       </>
                     ) : (
                       <>
