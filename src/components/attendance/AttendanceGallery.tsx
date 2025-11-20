@@ -68,7 +68,6 @@ const AttendanceGallery = () => {
       const processedRecords = await Promise.all(
         (data || []).map(async (record) => {
           let username = 'Unknown';
-          let imageUrl = record.image_url;
           
           if (record.device_info) {
             try {
@@ -85,32 +84,13 @@ const AttendanceGallery = () => {
               console.error('Error parsing device_info:', e);
             }
           }
-          
-          // If no image in record but we have user_id, try to get from registered faces
-          if (!imageUrl && record.user_id) {
-            const { data: registeredData } = await supabase
-              .from('attendance_records')
-              .select('image_url, device_info')
-              .eq('user_id', record.user_id)
-              .filter('device_info->registration', 'eq', 'true')
-              .single();
-            
-            if (registeredData) {
-              const deviceInfo = registeredData.device_info as any;
-              const metadata = deviceInfo?.metadata || {};
-              imageUrl = metadata.firebase_image_url || registeredData.image_url;
-              if (!username || username === 'Unknown') {
-                username = metadata.name || 'Unknown';
-              }
-            }
-          }
 
           return {
             id: record.id,
             name: username,
             timestamp: record.timestamp,
             status: record.status === 'present' ? 'Present' : record.status === 'late' ? 'Late' : 'Absent',
-            image_url: imageUrl,
+            image_url: record.image_url,
             confidence_score: record.confidence_score
           };
         })
