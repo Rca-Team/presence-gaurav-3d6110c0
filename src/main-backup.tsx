@@ -1,15 +1,15 @@
+// Backup of original main.tsx
 import { createRoot } from 'react-dom/client'
 import { StrictMode } from 'react'
 import { ThemeProvider } from '@/hooks/use-theme'
 import App from './App.tsx'
 import './index.css'
 
-console.log('=== MAIN.TSX LOADING ===');
-
 // Initialize application
+console.log('Starting app initialization...');
+
 try {
   const root = document.getElementById("root");
-  
   if (!root) {
     throw new Error('Root element not found');
   }
@@ -25,14 +25,4 @@ try {
   console.log('App rendered successfully');
 } catch (error) {
   console.error('Failed to initialize app:', error);
-  const root = document.getElementById("root");
-  if (root) {
-    root.innerHTML = `
-      <div style="padding: 20px; color: #dc2626; font-family: system-ui; max-width: 800px; margin: 40px auto;">
-        <h1>Application Error</h1>
-        <p>Failed to load the application. Please check the console for details.</p>
-        <pre style="background: #fee; padding: 16px; border-radius: 8px; overflow: auto;">${error}</pre>
-      </div>
-    `;
-  }
 }
