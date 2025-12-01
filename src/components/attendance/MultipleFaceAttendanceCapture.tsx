@@ -3,7 +3,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
+import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2, Sparkles, SwitchCamera } from 'lucide-react';
 import { loadOptimizedModels, detectFacesOptimized } from '@/services/face-recognition/OptimizedModelService';
 import { detectMultipleFaces, processBatchAttendance, resetMultipleFaceTracking } from '@/services/face-recognition/MultipleFaceService';
 import * as faceapi from 'face-api.js';
@@ -31,6 +32,7 @@ const MultipleFaceAttendanceCapture = () => {
   const detectionFrameRef = useRef<number>();
   const streamRef = useRef<MediaStream | null>(null);
   const lastDetectionTime = useRef<number>(0);
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
 
   // Load models progressively: fast preview model first, then high-accuracy model
   useEffect(() => {
@@ -112,11 +114,14 @@ const MultipleFaceAttendanceCapture = () => {
 
   const startCamera = async () => {
     try {
+      // Stop existing stream first
+      stopCamera();
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: 'user'
+          facingMode: cameraFacing
         }
       });
       
@@ -126,7 +131,9 @@ const MultipleFaceAttendanceCapture = () => {
         
         videoRef.current.onloadedmetadata = () => {
           if (videoRef.current) {
-            videoRef.current.play();
+            videoRef.current.play().catch(e => {
+              console.error('Error playing video:', e);
+            });
             startFaceDetection();
           }
         };
@@ -139,6 +146,17 @@ const MultipleFaceAttendanceCapture = () => {
         variant: "destructive",
       });
     }
+  };
+
+  // Restart camera when facing mode changes
+  useEffect(() => {
+    if (previewModelReady && !showResults) {
+      startCamera();
+    }
+  }, [cameraFacing]);
+
+  const toggleCamera = () => {
+    setCameraFacing(prev => prev === 'user' ? 'environment' : 'user');
   };
 
   const stopCamera = () => {
@@ -160,8 +178,8 @@ const MultipleFaceAttendanceCapture = () => {
       }
 
       const now = performance.now();
-      // Fast preview: detect every 200ms with TinyFaceDetector
-      if (now - lastDetectionTime.current < 200) {
+      // Optimized for mobile: detect every 300ms
+      if (now - lastDetectionTime.current < 300) {
         detectionFrameRef.current = requestAnimationFrame(detectFaces);
         return;
       }
@@ -169,10 +187,10 @@ const MultipleFaceAttendanceCapture = () => {
       lastDetectionTime.current = now;
 
       try {
-        // Use super-fast TinyFaceDetector for preview
+        // Use super-fast TinyFaceDetector for preview (mobile optimized)
         const detections = await faceapi
           .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({
-            inputSize: 224, // Smaller for speed
+            inputSize: 160, // Reduced for mobile performance
             scoreThreshold: 0.5
           }));
 
@@ -182,7 +200,10 @@ const MultipleFaceAttendanceCapture = () => {
           confidence: det.score
         }));
 
-        setDetectedFaces(formattedDetections);
+        // Throttle state updates
+        if (formattedDetections.length !== detectedFaces.length) {
+          setDetectedFaces(formattedDetections);
+        }
         drawFaceBoxes(formattedDetections);
       } catch (err) {
         console.error('Face detection error:', err);
@@ -218,17 +239,19 @@ const MultipleFaceAttendanceCapture = () => {
     facesToDraw.forEach((detection, index) => {
       const box = detection.detection.box;
       
-      // Draw bounding box
+      // Draw bounding box (thinner lines for mobile)
       ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2;
       ctx.strokeRect(box.x, box.y, box.width, box.height);
       
-      // Draw face number badge
+      // Draw face number badge (smaller for mobile)
+      const badgeWidth = 35;
+      const badgeHeight = 22;
       ctx.fillStyle = '#10b981';
-      ctx.fillRect(box.x, box.y - 25, 40, 25);
+      ctx.fillRect(box.x, box.y - badgeHeight, badgeWidth, badgeHeight);
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText(`#${index + 1}`, box.x + 8, box.y - 7);
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(`#${index + 1}`, box.x + 6, box.y - 6);
     });
   };
 
@@ -264,8 +287,8 @@ const MultipleFaceAttendanceCapture = () => {
 
     try {
       toast({
-        title: "Capturing with High Accuracy",
-        description: `Using SSD MobileNet to process ${detectedFaces.length} faces...`,
+        title: "Processing...",
+        description: `Analyzing ${detectedFaces.length} faces with MTCNN...`,
       });
 
       // Wait for animation
@@ -462,7 +485,7 @@ const MultipleFaceAttendanceCapture = () => {
             {!showResults ? (
               <>
                 {/* Camera View */}
-                <div className="relative rounded-lg overflow-hidden bg-black">
+                <div className="relative rounded-lg overflow-hidden bg-black aspect-video">
                   {captureFlash && (
                     <div className="absolute inset-0 bg-white animate-[fade-out_0.3s_ease-out] z-20" />
                   )}
@@ -472,28 +495,39 @@ const MultipleFaceAttendanceCapture = () => {
                     autoPlay
                     playsInline
                     muted
-                    className="w-full h-auto"
-                    style={{ transform: 'scaleX(-1)' }}
+                    className="w-full h-full object-cover"
+                    style={{ transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none' }}
                   />
                   
                   <canvas
                     ref={canvasRef}
-                    className="absolute inset-0 w-full h-full"
-                    style={{ transform: 'scaleX(-1)' }}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    style={{ transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none' }}
                   />
 
                   {/* Face count overlay */}
                   {detectedFaces.length > 0 && (
-                    <div className="absolute top-4 left-4 bg-primary/90 text-primary-foreground px-4 py-2 rounded-full font-medium flex items-center gap-2">
+                    <div className="absolute top-3 left-3 bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2">
                       <div className="w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
-                      {detectedFaces.length} face{detectedFaces.length !== 1 ? 's' : ''} detected
+                      {detectedFaces.length} face{detectedFaces.length !== 1 ? 's' : ''}
                     </div>
                   )}
+
+                  {/* Camera switch button */}
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute top-3 right-3 rounded-full bg-background/80 backdrop-blur-sm"
+                    onClick={toggleCamera}
+                    disabled={isCapturing || isProcessing}
+                  >
+                    <SwitchCamera className="h-5 w-5" />
+                  </Button>
                 </div>
 
                 {/* Controls */}
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="text-sm text-muted-foreground text-center sm:text-left">
                     {detectedFaces.length === 0 && "Position people in front of the camera"}
                     {detectedFaces.length > 0 && detectedFaces.length < 10 && "Good! More faces can be detected"}
                     {detectedFaces.length >= 10 && "Ready for batch capture"}
@@ -503,17 +537,17 @@ const MultipleFaceAttendanceCapture = () => {
                     onClick={handleCapture}
                     disabled={isCapturing || isProcessing || detectedFaces.length === 0 || modelStatus !== 'ready'}
                     size="lg"
-                    className="gap-2"
+                    className="gap-2 w-full sm:w-auto touch-manipulation"
                   >
                     {isProcessing ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        High-Accuracy Processing...
+                        Processing...
                       </>
                     ) : modelStatus !== 'ready' ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        Loading MTCNN Model...
+                        Loading...
                       </>
                     ) : (
                       <>
@@ -529,34 +563,34 @@ const MultipleFaceAttendanceCapture = () => {
                 {/* Results View */}
                 <div className="space-y-4">
                   {/* Summary */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <Card className="p-4 bg-green-50 border-green-200">
+                  <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                    <Card className="p-3 sm:p-4 bg-success/10 border-success/30">
                       <div className="text-center">
-                        <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-green-600">
+                        <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-success mx-auto mb-1 sm:mb-2" />
+                        <p className="text-xl sm:text-2xl font-bold text-success">
                           {processedResults.filter(r => r.status === 'present').length}
                         </p>
-                        <p className="text-xs text-green-700">Present</p>
+                        <p className="text-xs text-success/80">Present</p>
                       </div>
                     </Card>
                     
-                    <Card className="p-4 bg-yellow-50 border-yellow-200">
+                    <Card className="p-3 sm:p-4 bg-warning/10 border-warning/30">
                       <div className="text-center">
-                        <AlertCircle className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-yellow-600">
+                        <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-warning mx-auto mb-1 sm:mb-2" />
+                        <p className="text-xl sm:text-2xl font-bold text-warning">
                           {processedResults.filter(r => r.status === 'late').length}
                         </p>
-                        <p className="text-xs text-yellow-700">Late</p>
+                        <p className="text-xs text-warning/80">Late</p>
                       </div>
                     </Card>
                     
-                    <Card className="p-4 bg-red-50 border-red-200">
+                    <Card className="p-3 sm:p-4 bg-destructive/10 border-destructive/30">
                       <div className="text-center">
-                        <XCircle className="h-8 w-8 text-red-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-red-600">
+                        <XCircle className="h-6 w-6 sm:h-8 sm:w-8 text-destructive mx-auto mb-1 sm:mb-2" />
+                        <p className="text-xl sm:text-2xl font-bold text-destructive">
                           {processedResults.filter(r => r.status === 'unrecognized').length}
                         </p>
-                        <p className="text-xs text-red-700">Unrecognized</p>
+                        <p className="text-xs text-destructive/80">Unrecognized</p>
                       </div>
                     </Card>
                   </div>
@@ -566,22 +600,29 @@ const MultipleFaceAttendanceCapture = () => {
                     {processedResults.map((result, index) => (
                       <div
                         key={result.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border ${getStatusColor(result.status)}`}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-card border-border"
                       >
                         <div className="flex items-center gap-3">
-                          <span className="font-medium">#{index + 1}</span>
+                          {result.imageUrl && (
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={result.imageUrl} alt={result.name} />
+                            </Avatar>
+                          )}
+                          <span className="font-medium text-sm sm:text-base">#{index + 1}</span>
                           <div>
-                            <p className="font-medium">{result.name}</p>
+                            <p className="font-medium text-sm sm:text-base">{result.name}</p>
                             {result.confidence && (
-                              <p className="text-xs opacity-70">
-                                Confidence: {(result.confidence * 100).toFixed(1)}%
+                              <p className="text-xs text-muted-foreground">
+                                {(result.confidence * 100).toFixed(1)}% match
                               </p>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {getStatusIcon(result.status)}
-                          <Badge variant="outline" className="capitalize">
+                          <div className={result.status === 'present' ? 'text-success' : result.status === 'late' ? 'text-warning' : 'text-destructive'}>
+                            {getStatusIcon(result.status)}
+                          </div>
+                          <Badge variant="outline" className="capitalize text-xs">
                             {result.status}
                           </Badge>
                         </div>
@@ -590,7 +631,7 @@ const MultipleFaceAttendanceCapture = () => {
                   </div>
 
                   {/* Reset Button */}
-                  <Button onClick={handleReset} variant="outline" className="w-full">
+                  <Button onClick={handleReset} variant="outline" className="w-full touch-manipulation">
                     Capture New Attendance
                   </Button>
                 </div>
