@@ -288,40 +288,21 @@ const MultipleFaceAttendanceCapture = () => {
     try {
       toast({
         title: "Processing...",
-        description: `Analyzing ${detectedFaces.length} faces with MTCNN...`,
+        description: `Analyzing ${detectedFaces.length} faces...`,
       });
 
-      // Wait for animation
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Wait for animation to complete
+      await new Promise(resolve => setTimeout(resolve, 350));
       
       setIsProcessing(true);
 
-      // Detect and recognize all faces with SSD MobileNet (high accuracy)
       if (!videoRef.current) {
         throw new Error('Video not available');
       }
 
-      console.log('Using MTCNN for high-accuracy detection...');
+      console.log('Starting face detection and recognition...');
       
-      // Use MTCNN for high-accuracy face detection
-      const detections = await faceapi
-        .detectAllFaces(videoRef.current, new faceapi.MtcnnOptions({
-          minFaceSize: 20,
-          scaleFactor: 0.709
-        }))
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-
-      // Convert MTCNN detections to our format
-      const facesData = detections.map((detection, index) => ({
-        id: `face_${index}_${Date.now()}`,
-        detection: detection.detection,
-        landmarks: detection.landmarks,
-        descriptor: detection.descriptor,
-        confidence: detection.detection.score
-      }));
-
-      // Process through our recognition service
+      // Process all faces in one go (using optimized MultipleFaceService)
       const result = await detectMultipleFaces(videoRef.current, {
         enableRecognition: true,
         enableTracking: false,
