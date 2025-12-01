@@ -4,35 +4,16 @@ import { ThemeProvider } from '@/hooks/use-theme'
 import App from './App.tsx'
 import './index.css'
 
-console.log('=== MAIN.TSX LOADING ===');
+const root = document.getElementById("root");
 
-// Initialize application
-try {
-  const root = document.getElementById("root");
-  
-  if (!root) {
-    throw new Error('Root element not found');
-  }
-  
-  console.log('Creating React root...');
-  createRoot(root).render(
-    <StrictMode>
-      <ThemeProvider defaultTheme="dark">
-        <App />
-      </ThemeProvider>
-    </StrictMode>
-  );
-  console.log('App rendered successfully');
-} catch (error) {
-  console.error('Failed to initialize app:', error);
-  const root = document.getElementById("root");
-  if (root) {
-    root.innerHTML = `
-      <div style="padding: 20px; color: #dc2626; font-family: system-ui; max-width: 800px; margin: 40px auto;">
-        <h1>Application Error</h1>
-        <p>Failed to load the application. Please check the console for details.</p>
-        <pre style="background: #fee; padding: 16px; border-radius: 8px; overflow: auto;">${error}</pre>
-      </div>
-    `;
-  }
+if (!root) {
+  throw new Error('Root element not found');
 }
+
+createRoot(root).render(
+  <StrictMode>
+    <ThemeProvider defaultTheme="dark">
+      <App />
+    </ThemeProvider>
+  </StrictMode>
+);
