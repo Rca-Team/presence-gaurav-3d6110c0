@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-// Note: Resend import commented out - add to deno.json import_map if needed
-// import { Resend } from "npm:resend@2.0.0"
+import { Resend } from "npm:resend@2.0.0"
 
 function escapeHtml(text: string): string {
   const map: Record<string, string> = {
@@ -14,7 +13,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
+const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -113,34 +112,64 @@ serve(async (req) => {
           const statusText = userAttendance?.status === 'present' ? 'Present ✓' : userAttendance?.status === 'late' ? 'Late ⏰' : 'Absent ✗';
           const statusBadge = userAttendance?.status === 'present' ? 'ON TIME' : userAttendance?.status === 'late' ? 'LATE ARRIVAL' : 'ABSENT';
 
-          // Email functionality temporarily disabled - resend package needs to be added to import map
-          console.log('Would send email to:', profile.parent_email);
-          console.log('Email subject:', emailSubject);
-          
-          /* Original resend code - uncomment when resend is added to deno.json
           const emailResponse = await resend.emails.send({
             from: 'School Attendance <presence@electronicgaurav.me>',
             to: [profile.parent_email],
             subject: emailSubject,
-            html: `EMAIL_TEMPLATE_HERE`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
+                  <h1 style="color: white; margin: 0; font-size: 24px;">School Attendance System</h1>
+                </div>
+                
+                <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                  <div style="text-align: center; margin-bottom: 25px;">
+                    <span style="display: inline-block; background: ${statusColor}; color: white; padding: 12px 24px; border-radius: 25px; font-weight: bold; font-size: 16px; letter-spacing: 1px;">
+                      ${statusBadge}
+                    </span>
+                  </div>
+                  
+                    <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; border-left: 4px solid ${statusColor}; margin-bottom: 25px;">
+                    <h2 style="color: #333; margin-top: 0; font-size: 20px;">Attendance Details</h2>
+                    <div style="color: #555; line-height: 1.8; font-size: 16px;">
+                      <p style="margin: 10px 0;"><strong>Student:</strong> ${escapeHtml(studentName)}</p>
+                      <p style="margin: 10px 0;"><strong>Date:</strong> ${escapeHtml(attendanceDate)}</p>
+                      ${attendanceTime ? `<p style="margin: 10px 0;"><strong>Time:</strong> ${escapeHtml(attendanceTime)}</p>` : ''}
+                      <p style="margin: 10px 0;"><strong>Status:</strong> <span style="color: ${statusColor}; font-weight: bold;">${escapeHtml(statusText)}</span></p>
+                    </div>
+                  </div>
+                  
+                  <div style="background: #f0f4ff; padding: 20px; border-radius: 8px; border: 1px solid #d0d9ff;">
+                    <p style="color: #333; line-height: 1.6; margin: 0; font-size: 15px;">
+                      ${emailBody.replace(/\n/g, '<br>')}
+                    </p>
+                  </div>
+                </div>
+                
+                <div style="text-align: center; padding: 20px;">
+                  <p style="color: #666; font-size: 14px; margin: 0;">
+                    This is an automated daily attendance notification.<br>
+                    Please do not reply to this email.
+                  </p>
+                </div>
+              </div>
+            `,
           });
-          */
 
           notificationResults.push({
             student: studentName,
-            status: userAttendance?.status || 'unknown',
-            emailSent: false, // Would be true when resend is enabled
-            message: 'Email disabled - resend package not configured'
+            status: userAttendance?.status || 'absent',
+            emailSent: !emailResponse.error,
+            error: emailResponse.error?.message
           });
 
         } catch (error) {
           console.error(`Failed to send email for ${studentName}:`, error);
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           notificationResults.push({
             student: studentName,
             status: userAttendance?.status || 'absent',
             emailSent: false,
-            error: errorMessage
+            error: error.message
           });
         }
       }

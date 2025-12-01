@@ -22,6 +22,7 @@ const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ userId }) => {
       const { data } = await supabase
         .from('ai_insights')
         .select('*')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(3);
       return data || [];

@@ -310,23 +310,6 @@ const MultipleFaceAttendanceCapture = () => {
         classroomMode: true
       });
 
-      // Learn from successful recognitions with adaptive learning
-      const { AdaptiveLearningService } = await import('@/services/face-recognition/AdaptiveLearningService');
-      
-      for (const face of result.faces) {
-        if (face.recognition?.recognized && face.recognition.employee && face.recognition.confidence) {
-          if (face.recognition.confidence > 0.65) {
-            console.log(`Learning from capture: ${face.recognition.employee.name} with confidence ${face.recognition.confidence.toFixed(2)}`);
-            await AdaptiveLearningService.learnFromCapture(
-              face.recognition.employee.id,
-              face.descriptor,
-              face.recognition.confidence,
-              face.recognition.employee.avatar_url || face.recognition.employee.firebase_image_url
-            );
-          }
-        }
-      }
-
       // Process the results
       const processed: ProcessedFace[] = result.faces.map((face) => {
         if (face.recognition?.recognized && face.recognition.employee) {

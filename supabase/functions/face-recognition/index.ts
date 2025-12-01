@@ -175,12 +175,11 @@ serve(async (req) => {
         )
       } catch (error) {
         console.error('Error in getAttendanceCutoffTime:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return new Response(
           JSON.stringify({
             hour: DEFAULT_CUTOFF_HOUR,
             minute: DEFAULT_CUTOFF_MINUTE,
-            error: errorMessage
+            error: error.message
           }),
           {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -250,11 +249,10 @@ serve(async (req) => {
         )
       } catch (error) {
         console.error('Error updating cutoff time:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return new Response(
           JSON.stringify({ 
             success: false,
-            error: errorMessage
+            error: error.message
           }),
           {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -353,14 +351,12 @@ serve(async (req) => {
     )
   } catch (error) {
     console.error('Face recognition function error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : '';
     
     return new Response(
       JSON.stringify({ 
-        error: errorMessage,
+        error: error.message,
         timestamp: new Date().toISOString(),
-        details: errorStack
+        details: error.stack
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

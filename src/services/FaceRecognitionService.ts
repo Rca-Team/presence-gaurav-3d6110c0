@@ -1,3 +1,4 @@
+
 // Re-export all functions from our modular services
 export { 
   loadModels, 
@@ -27,5 +28,3 @@ export {
   formatCutoffTime,
   isPastCutoffTime
 } from './attendance/AttendanceSettingsService';
-
-export { AdaptiveLearningService } from './face-recognition/AdaptiveLearningService';

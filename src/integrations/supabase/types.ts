@@ -16,205 +16,178 @@ export type Database = {
     Tables: {
       ai_insights: {
         Row: {
-          content: string
-          created_at: string | null
+          confidence: number | null
+          created_at: string
+          data: Json
           id: string
           insight_type: string
-          metadata: Json | null
+          user_id: string | null
         }
         Insert: {
-          content: string
-          created_at?: string | null
+          confidence?: number | null
+          created_at?: string
+          data: Json
           id?: string
           insight_type: string
-          metadata?: Json | null
+          user_id?: string | null
         }
         Update: {
-          content?: string
-          created_at?: string | null
+          confidence?: number | null
+          created_at?: string
+          data?: Json
           id?: string
           insight_type?: string
-          metadata?: Json | null
+          user_id?: string | null
         }
         Relationships: []
       }
       attendance_records: {
         Row: {
           confidence_score: number | null
-          created_at: string | null
+          created_at: string
           device_info: Json | null
           face_descriptor: string | null
           id: string
           image_url: string | null
           status: string
           timestamp: string
-          updated_at: string | null
           user_id: string | null
         }
         Insert: {
           confidence_score?: number | null
-          created_at?: string | null
-          device_info?: Json | null
-          face_descriptor?: string | null
-          id?: string
-          image_url?: string | null
-          status: string
-          timestamp?: string
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          confidence_score?: number | null
-          created_at?: string | null
+          created_at?: string
           device_info?: Json | null
           face_descriptor?: string | null
           id?: string
           image_url?: string | null
           status?: string
           timestamp?: string
-          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string
+          device_info?: Json | null
+          face_descriptor?: string | null
+          id?: string
+          image_url?: string | null
+          status?: string
+          timestamp?: string
           user_id?: string | null
         }
         Relationships: []
       }
       attendance_settings: {
         Row: {
-          created_at: string | null
+          created_at: string
           id: string
           key: string
-          updated_at: string | null
-          value: Json
+          updated_at: string
+          value: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           id?: string
           key: string
-          updated_at?: string | null
-          value: Json
+          updated_at?: string
+          value: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           id?: string
           key?: string
-          updated_at?: string | null
-          value?: Json
-        }
-        Relationships: []
-      }
-      face_descriptors: {
-        Row: {
-          captured_at: string
-          confidence_score: number | null
-          created_at: string | null
-          descriptor: string
-          id: string
-          image_url: string | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          captured_at?: string
-          confidence_score?: number | null
-          created_at?: string | null
-          descriptor: string
-          id?: string
-          image_url?: string | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          captured_at?: string
-          confidence_score?: number | null
-          created_at?: string | null
-          descriptor?: string
-          id?: string
-          image_url?: string | null
-          updated_at?: string | null
-          user_id?: string
+          updated_at?: string
+          value?: string
         }
         Relationships: []
       }
       notifications: {
         Row: {
-          created_at: string | null
+          created_at: string
+          data: Json | null
           id: string
           message: string
           read: boolean | null
           title: string
-          user_id: string
+          type: string
+          user_id: string | null
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
+          data?: Json | null
           id?: string
           message: string
           read?: boolean | null
           title: string
-          user_id: string
+          type?: string
+          user_id?: string | null
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
+          data?: Json | null
           id?: string
           message?: string
           read?: boolean | null
           title?: string
-          user_id?: string
+          type?: string
+          user_id?: string | null
         }
         Relationships: []
       }
       profiles: {
         Row: {
           avatar_url: string | null
-          created_at: string | null
+          created_at: string
           display_name: string | null
           id: string
           parent_email: string | null
           parent_name: string | null
           parent_phone: string | null
-          updated_at: string | null
-          user_id: string
+          updated_at: string
+          user_id: string | null
           username: string | null
         }
         Insert: {
           avatar_url?: string | null
-          created_at?: string | null
+          created_at?: string
           display_name?: string | null
           id?: string
           parent_email?: string | null
           parent_name?: string | null
           parent_phone?: string | null
-          updated_at?: string | null
-          user_id: string
+          updated_at?: string
+          user_id?: string | null
           username?: string | null
         }
         Update: {
           avatar_url?: string | null
-          created_at?: string | null
+          created_at?: string
           display_name?: string | null
           id?: string
           parent_email?: string | null
           parent_name?: string | null
           parent_phone?: string | null
-          updated_at?: string | null
-          user_id?: string
+          updated_at?: string
+          user_id?: string | null
           username?: string | null
         }
         Relationships: []
       }
       user_roles: {
         Row: {
-          created_at: string | null
+          created_at: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           id?: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
@@ -227,15 +200,13 @@ export type Database = {
     }
     Functions: {
       has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "teacher" | "parent" | "student"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -363,7 +334,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "teacher", "parent", "student"],
     },
   },
 } as const
