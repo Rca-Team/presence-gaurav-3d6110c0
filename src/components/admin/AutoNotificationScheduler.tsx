@@ -23,8 +23,8 @@ const AutoNotificationScheduler: React.FC = () => {
         .single();
 
       if (data) {
-        setCutoffTime(data.value);
-        checkIfPastCutoff(data.value);
+        setCutoffTime(String(data.value));
+        checkIfPastCutoff(String(data.value));
       }
     };
 

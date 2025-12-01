@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_insights: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          insight_type: string
+          metadata: Json | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          insight_type: string
+          metadata?: Json | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          insight_type?: string
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
+      attendance_records: {
+        Row: {
+          confidence_score: number | null
+          created_at: string | null
+          device_info: Json | null
+          face_descriptor: string | null
+          id: string
+          image_url: string | null
+          status: string
+          timestamp: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string | null
+          device_info?: Json | null
+          face_descriptor?: string | null
+          id?: string
+          image_url?: string | null
+          status: string
+          timestamp?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string | null
+          device_info?: Json | null
+          face_descriptor?: string | null
+          id?: string
+          image_url?: string | null
+          status?: string
+          timestamp?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      attendance_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          key: string
+          updated_at: string | null
+          value: Json
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          key: string
+          updated_at?: string | null
+          value: Json
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          key?: string
+          updated_at?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       face_descriptors: {
         Row: {
           captured_at: string
@@ -47,15 +134,108 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          read: boolean | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          read?: boolean | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          read?: boolean | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          display_name: string | null
+          id: string
+          parent_email: string | null
+          parent_name: string | null
+          parent_phone: string | null
+          updated_at: string | null
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
+          updated_at?: string | null
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
+          updated_at?: string | null
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -182,6 +362,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
