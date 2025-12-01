@@ -36,7 +36,62 @@ interface DeviceInfo {
 
 export async function recognizeFace(faceDescriptor: Float32Array): Promise<RecognitionResult> {
   try {
-    console.log('Starting face recognition process');
+    console.log('Starting face recognition process with adaptive learning');
+    
+    // First, try adaptive learning recognition (more accurate with multiple descriptors)
+    const { AdaptiveLearningService } = await import('./AdaptiveLearningService');
+    const adaptiveResult = await AdaptiveLearningService.recognizeWithAdaptiveLearning(faceDescriptor);
+    
+    if (adaptiveResult.userId && adaptiveResult.confidence > 0.60) {
+      console.log(`Adaptive learning match found: ${adaptiveResult.userId} with confidence ${adaptiveResult.confidence.toFixed(2)}`);
+      
+      // Fetch employee data from attendance_records
+      const { data: recordData } = await supabase
+        .from('attendance_records')
+        .select('id, user_id, device_info')
+        .eq('user_id', adaptiveResult.userId)
+        .in('status', ['registered', 'pending_approval'])
+        .limit(1)
+        .maybeSingle();
+      
+      if (recordData) {
+        const deviceInfo = recordData.device_info as DeviceInfo | null;
+        const employeeData = deviceInfo?.metadata;
+        
+        if (employeeData) {
+          // Fetch avatar_url from profiles
+          let avatarUrl = employeeData.firebase_image_url || '';
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('avatar_url')
+            .eq('user_id', adaptiveResult.userId)
+            .maybeSingle();
+          
+          if (profileData?.avatar_url) {
+            avatarUrl = profileData.avatar_url;
+          }
+          
+          const employee: Employee = {
+            id: adaptiveResult.userId,
+            name: employeeData.name || 'Unknown',
+            employee_id: employeeData.employee_id || 'Unknown',
+            department: employeeData.department || 'Unknown',
+            position: employeeData.position || 'Unknown',
+            firebase_image_url: employeeData.firebase_image_url || '',
+            avatar_url: avatarUrl,
+          };
+          
+          return {
+            recognized: true,
+            employee,
+            confidence: adaptiveResult.confidence
+          };
+        }
+      }
+    }
+    
+    // Fallback to legacy recognition (single descriptor method)
+    console.log('Falling back to legacy recognition method');
     
     // Convert the descriptor to a string for comparison
     const faceDescriptorString = descriptorToString(faceDescriptor);
