@@ -15,7 +15,7 @@ interface AIInsightsCardProps {
 const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ userId }) => {
   const { generateAttendancePrediction, detectAnomalies, getPerformanceInsights, isGenerating } = useAIInsights();
 
-  const { data: insights, isLoading, refetch } = useQuery<any[]>({
+  const { data: insights, isLoading, refetch } = useQuery({
     queryKey: ['aiInsights', userId],
     queryFn: async () => {
       if (!userId) return [];
@@ -24,7 +24,7 @@ const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ userId }) => {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(3);
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: !!userId
   });

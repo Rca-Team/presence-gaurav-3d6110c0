@@ -86,7 +86,7 @@ const Profile = () => {
   });
 
   // Fetch AI insights
-  const { data: aiInsights } = useQuery<any[]>({
+  const { data: aiInsights } = useQuery({
     queryKey: ['aiInsights', user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -95,7 +95,7 @@ const Profile = () => {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(5);
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: !!user
   });
