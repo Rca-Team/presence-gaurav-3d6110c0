@@ -15,17 +15,16 @@ interface AIInsightsCardProps {
 const AIInsightsCard: React.FC<AIInsightsCardProps> = ({ userId }) => {
   const { generateAttendancePrediction, detectAnomalies, getPerformanceInsights, isGenerating } = useAIInsights();
 
-  const { data: insights, isLoading, refetch } = useQuery({
+  const { data: insights, isLoading, refetch } = useQuery<any[]>({
     queryKey: ['aiInsights', userId],
     queryFn: async () => {
       if (!userId) return [];
       const { data } = await supabase
         .from('ai_insights')
         .select('*')
-        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(3);
-      return data || [];
+      return (data || []) as any[];
     },
     enabled: !!userId
   });
