@@ -9,6 +9,7 @@ interface Employee {
   department: string;
   position: string;
   firebase_image_url: string;
+  avatar_url?: string; // Avatar from profiles table
 }
 
 interface RecognitionResult {
@@ -104,6 +105,21 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
         console.error('Employee metadata missing from best match');
         return { recognized: false };
       }
+
+      // Fetch avatar_url from profiles table
+      let avatarUrl = employeeData.firebase_image_url || '';
+      if (bestMatch.user_id && bestMatch.user_id !== 'unknown') {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('user_id', bestMatch.user_id)
+          .maybeSingle();
+        
+        if (profileData?.avatar_url) {
+          avatarUrl = profileData.avatar_url;
+          console.log(`Fetched avatar_url from profiles: ${avatarUrl}`);
+        }
+      }
       
       const employee: Employee = {
         id: bestMatch.user_id || 'unknown',
@@ -112,6 +128,7 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
         department: employeeData.department || 'Unknown',
         position: employeeData.position || 'Unknown',
         firebase_image_url: employeeData.firebase_image_url || '',
+        avatar_url: avatarUrl,
       };
       
       return {
