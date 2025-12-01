@@ -337,7 +337,7 @@ const MultipleFaceAttendanceCapture = () => {
             name: face.recognition.employee.name,
             status: 'present',
             confidence: face.recognition.confidence,
-            imageUrl: face.recognition.employee.firebase_image_url
+            imageUrl: face.recognition.employee.avatar_url || face.recognition.employee.firebase_image_url
           };
         } else {
           return {
