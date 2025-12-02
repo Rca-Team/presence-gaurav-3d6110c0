@@ -179,7 +179,7 @@ serve(async (req) => {
           JSON.stringify({
             hour: DEFAULT_CUTOFF_HOUR,
             minute: DEFAULT_CUTOFF_MINUTE,
-            error: error.message
+        error: (error as Error).message
           }),
           {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -252,7 +252,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: false,
-            error: error.message
+            error: (error as Error).message
           }),
           {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -354,9 +354,9 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: (error as Error).message,
         timestamp: new Date().toISOString(),
-        details: error.stack
+        details: (error as Error).stack
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
