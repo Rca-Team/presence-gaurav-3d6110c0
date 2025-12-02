@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -13,43 +14,30 @@ serve(async (req) => {
   try {
     const { image, operation } = await req.json();
     
+    console.log(`Face detection request - operation: ${operation}`);
+    
     if (!image) {
       throw new Error('No image provided');
     }
 
-    // Decode base64 image
-    const imageData = Uint8Array.from(atob(image.split(',')[1]), c => c.charCodeAt(0));
+    // For now, return mock data until ONNX models are integrated
+    // This allows the system to work while we set up the production models
     
     if (operation === 'detect') {
-      // RetinaFace detection
-      const detections = await detectFacesRetinaFace(imageData);
+      // Return mock detections
+      const detections = generateMockDetections(1);
       
       return new Response(
         JSON.stringify({ detections }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-    } else if (operation === 'recognize') {
-      // InsightFace ArcFace recognition
-      const { descriptor } = await req.json();
-      const embedding = await getArcFaceEmbedding(imageData);
       
-      return new Response(
-        JSON.stringify({ embedding }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     } else if (operation === 'detect-and-recognize') {
-      // Combined operation for efficiency
-      const detections = await detectFacesRetinaFace(imageData);
-      const results = [];
-      
-      for (const detection of detections) {
-        const faceImage = cropFace(imageData, detection.box);
-        const embedding = await getArcFaceEmbedding(faceImage);
-        results.push({
-          ...detection,
-          embedding: Array.from(embedding)
-        });
-      }
+      // Return mock detections with embeddings
+      const results = generateMockDetections(1).map(det => ({
+        ...det,
+        embedding: generateMockEmbedding()
+      }));
       
       return new Response(
         JSON.stringify({ results }),
@@ -57,74 +45,72 @@ serve(async (req) => {
       );
     }
 
-    throw new Error('Invalid operation');
-  } catch (error) {
+    throw new Error('Invalid operation. Use "detect" or "detect-and-recognize"');
+    
+  } catch (error: any) {
     console.error('Face detection error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: error.message || 'Unknown error',
+        details: 'The face detection service is currently using mock data. Full RetinaFace/ArcFace integration pending.'
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
 
-// RetinaFace detection using ONNX Runtime
-async function detectFacesRetinaFace(imageData: Uint8Array) {
-  // TODO: Implement RetinaFace detection using ONNX Runtime
-  // Model: retinaface_mnet025_v2.onnx or similar
-  // This requires:
-  // 1. Loading the ONNX model
-  // 2. Preprocessing the image
-  // 3. Running inference
-  // 4. Post-processing the results
+// Generate mock face detections
+function generateMockDetections(count: number) {
+  const detections = [];
   
-  console.log('RetinaFace detection - processing image of size:', imageData.length);
+  for (let i = 0; i < count; i++) {
+    detections.push({
+      box: {
+        x: 100 + (i * 250),
+        y: 100,
+        width: 200,
+        height: 200
+      },
+      confidence: 0.95 + (Math.random() * 0.04), // 0.95-0.99
+      landmarks: [
+        { x: 150 + (i * 250), y: 150 }, // left eye
+        { x: 250 + (i * 250), y: 150 }, // right eye
+        { x: 200 + (i * 250), y: 200 }, // nose
+        { x: 160 + (i * 250), y: 240 }, // left mouth
+        { x: 240 + (i * 250), y: 240 }  // right mouth
+      ]
+    });
+  }
   
-  // Placeholder implementation
-  // In production, this would use ONNX Runtime Web or a Python microservice
-  return [{
-    box: { x: 100, y: 100, width: 200, height: 200 },
-    confidence: 0.99,
-    landmarks: [
-      { x: 150, y: 150 }, // left eye
-      { x: 250, y: 150 }, // right eye
-      { x: 200, y: 200 }, // nose
-      { x: 160, y: 240 }, // left mouth
-      { x: 240, y: 240 }  // right mouth
-    ]
-  }];
+  return detections;
 }
 
-// InsightFace ArcFace embedding extraction
-async function getArcFaceEmbedding(imageData: Uint8Array): Promise<Float32Array> {
-  // TODO: Implement ArcFace embedding extraction using ONNX Runtime
-  // Model: arcface_r100_v1.onnx or similar
-  // This requires:
-  // 1. Loading the ONNX model
-  // 2. Preprocessing the face image (aligned, 112x112)
-  // 3. Running inference
-  // 4. Normalizing the embedding vector
+// Generate mock ArcFace embedding (512-dimensional)
+function generateMockEmbedding(): number[] {
+  const embedding = [];
   
-  console.log('ArcFace embedding - processing image of size:', imageData.length);
-  
-  // Placeholder: Generate a 512-dimensional embedding
-  // In production, this would be the actual ArcFace embedding
-  const embedding = new Float32Array(512);
+  // Generate random normalized embedding
   for (let i = 0; i < 512; i++) {
-    embedding[i] = Math.random() * 2 - 1; // Random values between -1 and 1
+    embedding.push(Math.random() * 2 - 1); // -1 to 1
   }
   
-  // Normalize the embedding
+  // Normalize
   const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-  for (let i = 0; i < embedding.length; i++) {
-    embedding[i] /= norm;
-  }
-  
-  return embedding;
+  return embedding.map(val => val / norm);
 }
 
-// Crop face from image based on detection box
-function cropFace(imageData: Uint8Array, box: { x: number, y: number, width: number, height: number }): Uint8Array {
-  // TODO: Implement image cropping
-  // For now, return the original image
-  return imageData;
-}
+// TODO: Integrate ONNX Runtime with RetinaFace and ArcFace models
+// Models needed:
+// - RetinaFace: retinaface_mnet025_v2.onnx
+// - ArcFace: arcface_r100_v1.onnx or w600k_r50.onnx
+// 
+// Steps to integrate:
+// 1. Upload ONNX model files to Supabase storage
+// 2. Import ONNX Runtime for Deno
+// 3. Load models at function initialization
+// 4. Implement preprocessing (face alignment, normalization)
+// 5. Run inference and post-processing
+// 6. Replace mock functions with real implementations
