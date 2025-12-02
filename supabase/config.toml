@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.auto-attendance-notifications]
 verify_jwt = false
+
+[functions.face-detection]
+verify_jwt = false

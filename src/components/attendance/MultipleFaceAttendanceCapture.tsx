@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { Camera, Users, CheckCircle, XCircle, AlertCircle, Loader2, Sparkles, SwitchCamera } from 'lucide-react';
-import { loadOptimizedModels, detectFacesOptimized } from '@/services/face-recognition/OptimizedModelService';
-import { detectMultipleFaces, processBatchAttendance, resetMultipleFaceTracking } from '@/services/face-recognition/MultipleFaceService';
+import { detectAndRecognizeFaces } from '@/services/face-recognition/RetinaFaceService';
+import { recognizeFace, recordAttendance } from '@/services/face-recognition/ArcFaceRecognitionService';
 import * as faceapi from 'face-api.js';
 
 interface ProcessedFace {
@@ -66,23 +66,18 @@ const MultipleFaceAttendanceCapture = () => {
           }
         }, 100);
 
-        // Step 2: Load high-accuracy models (MTCNN + recognition models) in background
+        // Step 2: Backend models ready (RetinaFace + ArcFace)
         setTimeout(async () => {
           if (!isMounted) return;
           
-          console.log('Loading MTCNN (high-accuracy) for processing...');
-          
-          // Load MTCNN - high accuracy face detector (comparable to RetinaFace)
-          await faceapi.nets.mtcnn.loadFromUri('/models');
-          await loadOptimizedModels(); // Load recognition models
+          console.log('Backend models ready: RetinaFace + ArcFace');
           
           if (isMounted) {
             setModelStatus('ready');
-            console.log('High-accuracy models (MTCNN) ready');
             
             toast({
               title: "High-Accuracy Ready",
-              description: "MTCNN model loaded for precise detection",
+              description: "RetinaFace + ArcFace models ready",
               duration: 2000,
             });
           }
@@ -300,38 +295,59 @@ const MultipleFaceAttendanceCapture = () => {
         throw new Error('Video not available');
       }
 
-      console.log('Starting face detection and recognition...');
+      console.log('Starting RetinaFace detection and ArcFace recognition...');
       
-      // Process all faces in one go (using optimized MultipleFaceService)
-      const result = await detectMultipleFaces(videoRef.current, {
-        enableRecognition: true,
-        enableTracking: false,
-        maxFaces: 50,
-        classroomMode: true
-      });
-
-      // Process the results
-      const processed: ProcessedFace[] = result.faces.map((face) => {
-        if (face.recognition?.recognized && face.recognition.employee) {
-          return {
-            id: face.id,
-            name: face.recognition.employee.name,
-            status: 'present',
-            confidence: face.recognition.confidence,
-            imageUrl: face.recognition.employee.avatar_url || face.recognition.employee.firebase_image_url
-          };
-        } else {
-          return {
-            id: face.id,
+      // Detect and recognize all faces using RetinaFace + ArcFace (backend)
+      const result = await detectAndRecognizeFaces(videoRef.current);
+      
+      const processed: ProcessedFace[] = [];
+      let recognizedCount = 0;
+      
+      for (const detection of result.detections) {
+        if (!detection.embedding) {
+          processed.push({
+            id: `face-${Math.random()}`,
             name: 'Unknown Person',
             status: 'unrecognized',
-            confidence: face.confidence
-          };
+            confidence: detection.confidence
+          });
+          continue;
         }
-      });
+        
+        const embedding = new Float32Array(detection.embedding);
+        const recognition = await recognizeFace(embedding);
+        
+        if (recognition.recognized && recognition.userId) {
+          // Record attendance
+          await recordAttendance(
+            recognition.userId,
+            recognition.status || 'present',
+            recognition.confidence
+          );
+          
+          processed.push({
+            id: recognition.userId,
+            name: recognition.userName || 'Unknown',
+            status: recognition.status === 'present' || recognition.status === 'late' ? recognition.status : 'present',
+            confidence: recognition.confidence,
+            imageUrl: recognition.userAvatar
+          });
+          recognizedCount++;
+        } else {
+          processed.push({
+            id: `face-${Math.random()}`,
+            name: 'Unknown Person',
+            status: 'unrecognized',
+            confidence: recognition.confidence
+          });
+        }
+      }
 
-      // Process batch attendance
-      const batchResult = await processBatchAttendance(result.faces);
+      const batchResult = {
+        processed: processed.length,
+        recognized: recognizedCount,
+        unrecognized: processed.length - recognizedCount
+      };
 
       setProcessedResults(processed);
       setShowResults(true);
@@ -372,7 +388,6 @@ const MultipleFaceAttendanceCapture = () => {
     setProcessedResults([]);
     setDetectedFaces([]);
     setIsCapturing(false);
-    resetMultipleFaceTracking();
     
     // Clear canvas
     if (canvasRef.current) {
@@ -442,7 +457,7 @@ const MultipleFaceAttendanceCapture = () => {
             </Badge>
             <Badge variant={modelStatus === 'ready' ? 'default' : 'secondary'} className="bg-blue-500 text-white">
               {modelStatus === 'loading' && 'Capture: Loading'}
-              {modelStatus === 'ready' && 'Capture: MTCNN'}
+              {modelStatus === 'ready' && 'Capture: RetinaFace + ArcFace'}
               {modelStatus === 'error' && 'Error'}
             </Badge>
           </div>
