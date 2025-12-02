@@ -16,178 +16,205 @@ export type Database = {
     Tables: {
       ai_insights: {
         Row: {
-          confidence: number | null
-          created_at: string
-          data: Json
+          content: string
+          created_at: string | null
           id: string
           insight_type: string
-          user_id: string | null
+          metadata: Json | null
         }
         Insert: {
-          confidence?: number | null
-          created_at?: string
-          data: Json
+          content: string
+          created_at?: string | null
           id?: string
           insight_type: string
-          user_id?: string | null
+          metadata?: Json | null
         }
         Update: {
-          confidence?: number | null
-          created_at?: string
-          data?: Json
+          content?: string
+          created_at?: string | null
           id?: string
           insight_type?: string
-          user_id?: string | null
+          metadata?: Json | null
         }
         Relationships: []
       }
       attendance_records: {
         Row: {
           confidence_score: number | null
-          created_at: string
+          created_at: string | null
           device_info: Json | null
           face_descriptor: string | null
           id: string
           image_url: string | null
           status: string
           timestamp: string
+          updated_at: string | null
           user_id: string | null
         }
         Insert: {
           confidence_score?: number | null
-          created_at?: string
+          created_at?: string | null
           device_info?: Json | null
           face_descriptor?: string | null
           id?: string
           image_url?: string | null
-          status?: string
+          status: string
           timestamp?: string
+          updated_at?: string | null
           user_id?: string | null
         }
         Update: {
           confidence_score?: number | null
-          created_at?: string
+          created_at?: string | null
           device_info?: Json | null
           face_descriptor?: string | null
           id?: string
           image_url?: string | null
           status?: string
           timestamp?: string
+          updated_at?: string | null
           user_id?: string | null
         }
         Relationships: []
       }
       attendance_settings: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           key: string
-          updated_at: string
-          value: string
+          updated_at: string | null
+          value: Json
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           key: string
-          updated_at?: string
-          value: string
+          updated_at?: string | null
+          value: Json
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           key?: string
-          updated_at?: string
-          value?: string
+          updated_at?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
+      face_descriptors: {
+        Row: {
+          captured_at: string
+          confidence_score: number | null
+          created_at: string | null
+          descriptor: string
+          id: string
+          image_url: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string
+          confidence_score?: number | null
+          created_at?: string | null
+          descriptor: string
+          id?: string
+          image_url?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          captured_at?: string
+          confidence_score?: number | null
+          created_at?: string | null
+          descriptor?: string
+          id?: string
+          image_url?: string | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
       notifications: {
         Row: {
-          created_at: string
-          data: Json | null
+          created_at: string | null
           id: string
           message: string
           read: boolean | null
           title: string
-          type: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
-          created_at?: string
-          data?: Json | null
+          created_at?: string | null
           id?: string
           message: string
           read?: boolean | null
           title: string
-          type?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
-          created_at?: string
-          data?: Json | null
+          created_at?: string | null
           id?: string
           message?: string
           read?: boolean | null
           title?: string
-          type?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
       profiles: {
         Row: {
           avatar_url: string | null
-          created_at: string
+          created_at: string | null
           display_name: string | null
           id: string
           parent_email: string | null
           parent_name: string | null
           parent_phone: string | null
-          updated_at: string
-          user_id: string | null
+          updated_at: string | null
+          user_id: string
           username: string | null
         }
         Insert: {
           avatar_url?: string | null
-          created_at?: string
+          created_at?: string | null
           display_name?: string | null
           id?: string
           parent_email?: string | null
           parent_name?: string | null
           parent_phone?: string | null
-          updated_at?: string
-          user_id?: string | null
+          updated_at?: string | null
+          user_id: string
           username?: string | null
         }
         Update: {
           avatar_url?: string | null
-          created_at?: string
+          created_at?: string | null
           display_name?: string | null
           id?: string
           parent_email?: string | null
           parent_name?: string | null
           parent_phone?: string | null
-          updated_at?: string
-          user_id?: string | null
+          updated_at?: string | null
+          user_id?: string
           username?: string | null
         }
         Relationships: []
       }
       user_roles: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
@@ -200,13 +227,15 @@ export type Database = {
     }
     Functions: {
       has_role: {
-        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
         Returns: boolean
       }
-      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "teacher" | "parent" | "student"
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -334,7 +363,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "teacher", "parent", "student"],
+      app_role: ["admin", "moderator", "user"],
     },
   },
 } as const
