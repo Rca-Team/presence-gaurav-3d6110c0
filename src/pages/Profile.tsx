@@ -87,13 +87,11 @@ const Profile = () => {
 
   // Fetch AI insights
   const { data: aiInsights } = useQuery({
-    queryKey: ['aiInsights', user?.id],
+    queryKey: ['aiInsights'],
     queryFn: async () => {
-      if (!user) return [];
       const { data } = await supabase
         .from('ai_insights')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5);
       return data || [];
