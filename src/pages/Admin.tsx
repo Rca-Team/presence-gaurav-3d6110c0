@@ -7,9 +7,11 @@ import AttendanceCalendar from '@/components/admin/AttendanceCalendar';
 import AttendanceCutoffSetting from '@/components/admin/AttendanceCutoffSetting';
 import AutoNotificationScheduler from '@/components/admin/AutoNotificationScheduler';
 import BulkNotificationService from '@/components/admin/BulkNotificationService';
+import QuickRegistrationForm from '@/components/admin/QuickRegistrationForm';
+import PDFBulkRegistration from '@/components/admin/PDFBulkRegistration';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { User, Calendar, Filter, Clock } from 'lucide-react';
+import { User, Calendar, Filter, Clock, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -202,6 +204,10 @@ const Admin = () => {
             <Clock className="h-4 w-4" />
             <span>Settings</span>
           </TabsTrigger>
+          <TabsTrigger value="register" className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4" />
+            <span>Register</span>
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="faces" className="space-y-4">
           <AdminFacesList 
@@ -222,6 +228,12 @@ const Admin = () => {
         <TabsContent value="settings" className="space-y-6">
           <AttendanceCutoffSetting />
           <AutoNotificationScheduler />
+        </TabsContent>
+        <TabsContent value="register" className="space-y-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            <QuickRegistrationForm onSuccess={() => setAttendanceUpdated(true)} />
+            <PDFBulkRegistration />
+          </div>
         </TabsContent>
       </Tabs>
     </PageLayout>
