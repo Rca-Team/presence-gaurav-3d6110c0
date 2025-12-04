@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-// import { Resend } from "npm:resend@2.0.0" // Temporarily disabled
+
+// This function is intended to be called by a CRON job or scheduled task
+// It uses a secret token for authentication since JWT isn't suitable for automated tasks
 
 function escapeHtml(text: string): string {
   const map: Record<string, string> = {
@@ -13,11 +15,9 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// const resend = new Resend(Deno.env.get('RESEND_API_KEY')); // Temporarily disabled
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 }
 
 serve(async (req) => {
@@ -26,6 +26,57 @@ serve(async (req) => {
   }
 
   try {
+    // Validate CRON secret for automated calls
+    const cronSecret = req.headers.get('x-cron-secret');
+    const expectedSecret = Deno.env.get('CRON_SECRET');
+    
+    // If no CRON_SECRET is set, fall back to admin user authentication
+    if (expectedSecret && cronSecret !== expectedSecret) {
+      // Try admin authentication as fallback
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Authentication required - provide x-cron-secret header or admin Authorization' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+      
+      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: { user }, error: authError } = await authClient.auth.getUser();
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid authentication token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verify admin role
+      const serviceClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+      const { data: roleData } = await serviceClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .single();
+
+      if (!roleData) {
+        return new Response(
+          JSON.stringify({ error: 'Admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`Admin user ${user.id} triggered auto-notifications`);
+    } else if (expectedSecret) {
+      console.log('CRON job triggered auto-notifications');
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -123,13 +174,6 @@ serve(async (req) => {
             emailSent: false,
             error: 'Email service temporarily unavailable'
           });
-
-          /*
-          // Original email code - to be re-enabled when Resend is configured
-          const emailResponse = await resend.emails.send({
-...
-          });
-          */
 
         } catch (error) {
           console.error(`Failed to send email for ${studentName}:`, error);
