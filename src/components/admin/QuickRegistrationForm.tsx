@@ -44,11 +44,13 @@ const QuickRegistrationForm: React.FC<QuickRegistrationFormProps> = ({ onSuccess
     const loadModels = async () => {
       try {
         await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
           faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
           faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
           faceapi.nets.faceRecognitionNet.loadFromUri('/models')
         ]);
         setModelsReady(true);
+        console.log('Registration models loaded');
       } catch (err) {
         console.error('Error loading models:', err);
       }
@@ -180,7 +182,7 @@ const QuickRegistrationForm: React.FC<QuickRegistrationFormProps> = ({ onSuccess
     setIsProcessing(true);
     
     try {
-      // Get face descriptor from captured image
+      // Get face descriptor from captured image using SSD MobileNet for accuracy
       const img = new Image();
       img.src = capturedImageUrl;
       await new Promise(resolve => { img.onload = resolve; });
@@ -188,13 +190,32 @@ const QuickRegistrationForm: React.FC<QuickRegistrationFormProps> = ({ onSuccess
       let descriptor: Float32Array | undefined;
       
       if (modelsReady) {
+        // Use SSD MobileNet for more accurate face detection during registration
         const detection = await faceapi
-          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416 }))
+          .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
           .withFaceLandmarks()
           .withFaceDescriptor();
         
         if (detection) {
           descriptor = detection.descriptor;
+          console.log('Face descriptor extracted successfully');
+        } else {
+          // Fallback to TinyFaceDetector
+          const tinyDetection = await faceapi
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+          
+          if (tinyDetection) {
+            descriptor = tinyDetection.descriptor;
+            console.log('Face descriptor extracted with fallback detector');
+          }
+        }
+        
+        if (!descriptor) {
+          toast({ title: "Warning", description: "No face detected in the image. Try a clearer photo.", variant: "destructive" });
+          setIsProcessing(false);
+          return;
         }
       }
       

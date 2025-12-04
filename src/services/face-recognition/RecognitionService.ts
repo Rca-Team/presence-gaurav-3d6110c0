@@ -38,8 +38,8 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
   try {
     console.log('Starting face recognition process');
     
-    // Convert the descriptor to a string for comparison
-    const faceDescriptorString = descriptorToString(faceDescriptor);
+    // Normalize the input descriptor for better matching
+    const normalizedInput = normalizeDescriptor(faceDescriptor);
     
     // Query registered faces from attendance_records (registered or pending_approval)
     const { data, error } = await supabase
@@ -60,7 +60,7 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
     console.log(`Found ${data.length} registered faces to compare against`);
     
     let bestMatch: any = null;
-    let bestDistance = 0.6; // Relaxed threshold for better recognition (0.6 is standard for face-api.js)
+    let bestDistance = 0.55; // Tighter threshold for better accuracy (lower = stricter)
     
     // Compare the face descriptor against all registered faces
     for (const record of data) {
@@ -146,15 +146,36 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
   }
 }
 
+// Normalize a face descriptor for consistent comparison
+function normalizeDescriptor(descriptor: Float32Array): Float32Array {
+  let magnitude = 0;
+  for (let i = 0; i < descriptor.length; i++) {
+    magnitude += descriptor[i] * descriptor[i];
+  }
+  magnitude = Math.sqrt(magnitude);
+  
+  if (magnitude === 0) return descriptor;
+  
+  const normalized = new Float32Array(descriptor.length);
+  for (let i = 0; i < descriptor.length; i++) {
+    normalized[i] = descriptor[i] / magnitude;
+  }
+  return normalized;
+}
+
 // Calculate Euclidean distance between two face descriptors
 function calculateDistance(descriptor1: Float32Array, descriptor2: Float32Array): number {
   if (descriptor1.length !== descriptor2.length) {
     throw new Error('Face descriptors have different dimensions');
   }
   
+  // Normalize both descriptors before comparison
+  const norm1 = normalizeDescriptor(descriptor1);
+  const norm2 = normalizeDescriptor(descriptor2);
+  
   let sum = 0;
-  for (let i = 0; i < descriptor1.length; i++) {
-    const diff = descriptor1[i] - descriptor2[i];
+  for (let i = 0; i < norm1.length; i++) {
+    const diff = norm1[i] - norm2[i];
     sum += diff * diff;
   }
   
