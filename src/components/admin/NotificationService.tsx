@@ -61,14 +61,15 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
       // Get parent contact information from attendance records or profiles
       let parentInfo = null;
       
-      // Try to get profile by user_id first, then by id
+      // Try multiple lookup strategies for finding profiles
+      // 1. Try by user_id (for auth-based users)
       let { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', studentId)
         .maybeSingle();
 
-      // If not found, try by id
+      // 2. If not found, try by id
       if (!profile) {
         const result = await supabase
           .from('profiles')
@@ -76,6 +77,35 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
           .eq('id', studentId)
           .maybeSingle();
         profile = result.data;
+      }
+
+      // 3. If still not found, try to find by display_name matching studentName
+      if (!profile && studentName) {
+        const result = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('display_name', studentName)
+          .maybeSingle();
+        profile = result.data;
+      }
+
+      // 4. Check face_descriptors to find the user_id and then lookup profile
+      if (!profile) {
+        const { data: faceData } = await supabase
+          .from('face_descriptors')
+          .select('user_id')
+          .eq('user_id', studentId)
+          .maybeSingle();
+        
+        if (faceData) {
+          // Try to find or create profile for this face user
+          const { data: faceProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', faceData.user_id)
+            .maybeSingle();
+          profile = faceProfile;
+        }
       }
 
       // Only use real parent email from profile - no demo emails
@@ -140,18 +170,28 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
   useEffect(() => {
     const checkParentDetailsAndStatus = async () => {
       if (open && studentId) {
-        // Check parent details
+        // Check parent details - try multiple lookup strategies
         let { data: profile } = await supabase
           .from('profiles')
-          .select('parent_email, parent_name')
+          .select('parent_email, parent_name, display_name')
           .eq('user_id', studentId)
           .maybeSingle();
 
         if (!profile) {
           const result = await supabase
             .from('profiles')
-            .select('parent_email, parent_name')
+            .select('parent_email, parent_name, display_name')
             .eq('id', studentId)
+            .maybeSingle();
+          profile = result.data;
+        }
+
+        // Try by display_name if still not found
+        if (!profile && studentName) {
+          const result = await supabase
+            .from('profiles')
+            .select('parent_email, parent_name, display_name')
+            .ilike('display_name', studentName)
             .maybeSingle();
           profile = result.data;
         }
@@ -203,12 +243,32 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
 
     setIsLoading(true);
     try {
-      // First, check if profile exists by user_id
+      // Try multiple lookup strategies to find or create profile
       let { data: existingProfile } = await supabase
         .from('profiles')
         .select('id, user_id')
         .eq('user_id', studentId)
         .maybeSingle();
+
+      // Try by id if not found
+      if (!existingProfile) {
+        const { data: profileById } = await supabase
+          .from('profiles')
+          .select('id, user_id')
+          .eq('id', studentId)
+          .maybeSingle();
+        existingProfile = profileById;
+      }
+
+      // Try by display_name if still not found
+      if (!existingProfile && studentName) {
+        const { data: profileByName } = await supabase
+          .from('profiles')
+          .select('id, user_id')
+          .ilike('display_name', studentName)
+          .maybeSingle();
+        existingProfile = profileByName;
+      }
 
       let result;
       if (existingProfile) {
@@ -219,38 +279,19 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
             parent_email: parentEmail.trim(),
             parent_name: parentName.trim() || null
           })
-          .eq('user_id', studentId)
+          .eq('id', existingProfile.id)
           .select();
       } else {
-        // Check if profile exists by id
-        const { data: profileById } = await supabase
+        // Create new profile for this student
+        result = await supabase
           .from('profiles')
-          .select('id, user_id')
-          .eq('id', studentId)
-          .maybeSingle();
-
-        if (profileById) {
-          // Update by id
-          result = await supabase
-            .from('profiles')
-            .update({
-              parent_email: parentEmail.trim(),
-              parent_name: parentName.trim() || null
-            })
-            .eq('id', studentId)
-            .select();
-        } else {
-          // Create new profile
-          result = await supabase
-            .from('profiles')
-            .insert({
-              user_id: studentId,
-              display_name: studentName || 'Student',
-              parent_email: parentEmail.trim(),
-              parent_name: parentName.trim() || null
-            })
-            .select();
-        }
+          .insert({
+            user_id: studentId,
+            display_name: studentName || 'Student',
+            parent_email: parentEmail.trim(),
+            parent_name: parentName.trim() || null
+          })
+          .select();
       }
 
       if (result.error) {
