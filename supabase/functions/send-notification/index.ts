@@ -26,7 +26,7 @@ const notificationSchema = z.object({
     body: z.string().min(1).max(5000)
   }),
   student: z.object({
-    id: z.string().uuid(),
+    id: z.string().min(1).max(100), // Accept any string ID (UUID or custom like STU-001)
     name: z.string().max(100),
     status: z.enum(['present', 'late', 'absent'])
   }).optional()
