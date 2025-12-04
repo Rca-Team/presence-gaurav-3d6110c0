@@ -36,11 +36,13 @@ const PDFBulkRegistration: React.FC = () => {
     if (modelsLoaded) return;
     try {
       await Promise.all([
+        faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
         faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
         faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
         faceapi.nets.faceRecognitionNet.loadFromUri('/models')
       ]);
       setModelsLoaded(true);
+      console.log('Bulk registration models loaded');
     } catch (err) {
       console.error('Error loading models:', err);
     }
@@ -186,10 +188,19 @@ const PDFBulkRegistration: React.FC = () => {
           img.src = URL.createObjectURL(user.imageBlob);
           await new Promise(resolve => { img.onload = resolve; });
           
-          const detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416 }))
+          // Use SSD MobileNet for accurate face detection
+          let detection = await faceapi
+            .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
+          
+          // Fallback to TinyFaceDetector if SSD fails
+          if (!detection) {
+            detection = await faceapi
+              .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 }))
+              .withFaceLandmarks()
+              .withFaceDescriptor();
+          }
           
           if (detection) {
             descriptor = detection.descriptor;
