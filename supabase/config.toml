@@ -7,19 +7,19 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.smart-notifications]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ai-insights]
-verify_jwt = false
+verify_jwt = true
 
 [functions.face-recognition]
-verify_jwt = false
+verify_jwt = true
 
 [functions.auto-attendance-notifications]
 verify_jwt = false
 
 [functions.face-detection]
-verify_jwt = false
+verify_jwt = true
 
 [functions.extract-pdf-users]
-verify_jwt = false
+verify_jwt = true

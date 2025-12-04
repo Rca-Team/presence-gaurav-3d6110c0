@@ -13,23 +13,59 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
 
     if (!lovableApiKey) {
       throw new Error("LOVABLE_API_KEY not configured");
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Verify user authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authorization header required' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired authentication token' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Authenticated user: ${user.id}`);
+
+    // Use service role client for data operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { type, userId, data } = await req.json();
 
-    console.log("Generating AI insight:", { type, userId });
+    // Users can only get insights for themselves (or admins for anyone)
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .single();
+
+    const isAdmin = !!roleData;
+    const targetUserId = isAdmin ? (userId || user.id) : user.id;
+
+    console.log("Generating AI insight:", { type, targetUserId, isAdmin });
 
     // Fetch user attendance history
     const { data: attendanceData, error: fetchError } = await supabase
       .from("attendance_records")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", targetUserId)
       .order("timestamp", { ascending: false })
       .limit(30);
 
@@ -99,10 +135,9 @@ serve(async (req) => {
     const { error: insertError } = await supabase
       .from("ai_insights")
       .insert({
-        user_id: userId,
         insight_type: type,
-        data: content,
-        confidence: content.confidence || 0.8
+        content: JSON.stringify(content),
+        metadata: { user_id: targetUserId, confidence: content.confidence || 0.8 }
       });
 
     if (insertError) throw insertError;
