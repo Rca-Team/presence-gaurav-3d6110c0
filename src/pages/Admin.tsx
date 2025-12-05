@@ -9,9 +9,10 @@ import AutoNotificationScheduler from '@/components/admin/AutoNotificationSchedu
 import BulkNotificationService from '@/components/admin/BulkNotificationService';
 import QuickRegistrationForm from '@/components/admin/QuickRegistrationForm';
 import PDFBulkRegistration from '@/components/admin/PDFBulkRegistration';
+import CategoryBasedView from '@/components/admin/CategoryBasedView';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { User, Calendar, Filter, Clock, UserPlus } from 'lucide-react';
+import { User, Calendar, Filter, Clock, UserPlus, FolderKanban } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -26,7 +27,7 @@ const Admin = () => {
   const { toast } = useToast();
   const [selectedFaceId, setSelectedFaceId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [activeTab, setActiveTab] = useState('faces');
+  const [activeTab, setActiveTab] = useState('categories');
   const [attendanceUpdated, setAttendanceUpdated] = useState(false);
   const [nameFilter, setNameFilter] = useState<string>('all');
   const [availableFaces, setAvailableFaces] = useState<{id: string, name: string, employee_id: string}[]>([]);
@@ -174,15 +175,19 @@ const Admin = () => {
       </PageHeader>
 
       <Tabs 
-        defaultValue="faces" 
+        defaultValue="categories" 
         className="w-full"
         value={activeTab}
         onValueChange={setActiveTab}
       >
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 flex-wrap">
+          <TabsTrigger value="categories" className="flex items-center gap-2">
+            <FolderKanban className="h-4 w-4" />
+            <span>Categories</span>
+          </TabsTrigger>
           <TabsTrigger value="faces" className="flex items-center gap-2">
             <User className="h-4 w-4" />
-            <span>Registered Faces</span>
+            <span>All Faces</span>
             {attendanceUpdated && (
               <span className="flex h-2 w-2 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
@@ -192,7 +197,7 @@ const Admin = () => {
           </TabsTrigger>
           <TabsTrigger value="calendar" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            <span>Attendance Calendar</span>
+            <span>Calendar</span>
             {attendanceUpdated && (
               <span className="flex h-2 w-2 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
@@ -209,6 +214,9 @@ const Admin = () => {
             <span>Register</span>
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="categories" className="space-y-4">
+          <CategoryBasedView />
+        </TabsContent>
         <TabsContent value="faces" className="space-y-4">
           <AdminFacesList 
             viewMode={viewMode} 

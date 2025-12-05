@@ -40,6 +40,7 @@ export type Database = {
       }
       attendance_records: {
         Row: {
+          category: string | null
           confidence_score: number | null
           created_at: string | null
           device_info: Json | null
@@ -52,6 +53,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          category?: string | null
           confidence_score?: number | null
           created_at?: string | null
           device_info?: Json | null
@@ -64,6 +66,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          category?: string | null
           confidence_score?: number | null
           created_at?: string | null
           device_info?: Json | null

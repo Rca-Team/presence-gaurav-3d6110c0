@@ -7,6 +7,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Camera, Loader2, CheckCircle, User, Upload } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import { registerFace } from '@/services/face-recognition/RegistrationService';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+type Category = 'A' | 'B' | 'C' | 'D' | 'Teacher';
 
 interface QuickRegistrationFormProps {
   onSuccess?: () => void;
@@ -15,6 +24,7 @@ interface QuickRegistrationFormProps {
     employee_id?: string;
     department?: string;
     position?: string;
+    category?: Category;
     imageBlob?: Blob;
   };
 }
@@ -29,7 +39,8 @@ const QuickRegistrationForm: React.FC<QuickRegistrationFormProps> = ({ onSuccess
     name: prefillData?.name || '',
     employee_id: prefillData?.employee_id || '',
     department: prefillData?.department || '',
-    position: prefillData?.position || ''
+    position: prefillData?.position || '',
+    category: prefillData?.category || 'A' as Category
   });
   
   const [capturedImage, setCapturedImage] = useState<Blob | null>(prefillData?.imageBlob || null);
@@ -67,7 +78,8 @@ const QuickRegistrationForm: React.FC<QuickRegistrationFormProps> = ({ onSuccess
         name: prefillData.name || '',
         employee_id: prefillData.employee_id || '',
         department: prefillData.department || '',
-        position: prefillData.position || ''
+        position: prefillData.position || '',
+        category: prefillData.category || 'A'
       });
       if (prefillData.imageBlob) {
         setCapturedImage(prefillData.imageBlob);
@@ -226,7 +238,9 @@ const QuickRegistrationForm: React.FC<QuickRegistrationFormProps> = ({ onSuccess
         formData.department || 'General',
         formData.position || 'Student',
         undefined,
-        descriptor
+        descriptor,
+        undefined,
+        formData.category
       );
       
       toast({
@@ -235,7 +249,7 @@ const QuickRegistrationForm: React.FC<QuickRegistrationFormProps> = ({ onSuccess
       });
       
       // Reset form
-      setFormData({ name: '', employee_id: '', department: '', position: '' });
+      setFormData({ name: '', employee_id: '', department: '', position: '', category: 'A' });
       setCapturedImage(null);
       setCapturedImageUrl('');
       
@@ -361,6 +375,24 @@ const QuickRegistrationForm: React.FC<QuickRegistrationFormProps> = ({ onSuccess
                 onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
                 placeholder="e.g. Computer Science"
               />
+            </div>
+            <div className="col-span-2">
+              <Label htmlFor="category">Category *</Label>
+              <Select 
+                value={formData.category} 
+                onValueChange={(value: Category) => setFormData(prev => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">Category A</SelectItem>
+                  <SelectItem value="B">Category B</SelectItem>
+                  <SelectItem value="C">Category C</SelectItem>
+                  <SelectItem value="D">Category D</SelectItem>
+                  <SelectItem value="Teacher">Teacher</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

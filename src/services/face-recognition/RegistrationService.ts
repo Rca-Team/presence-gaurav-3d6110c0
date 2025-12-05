@@ -27,7 +27,8 @@ export const registerFace = async (
     parent_name?: string;
     parent_email?: string;
     parent_phone?: string;
-  }
+  },
+  category?: string
 ): Promise<any> => {
   try {
     console.log('Starting face registration process', {
@@ -117,16 +118,17 @@ export const registerFace = async (
     const insertData = {
       user_id: effectiveUserId,
       timestamp: new Date().toISOString(),
-      status: 'registered' as const,
+      status: 'registered',
       device_info: deviceInfo,
       image_url: imageUrl,
-      face_descriptor: faceDescriptorString
+      face_descriptor: faceDescriptorString,
+      category: category || 'A'
     };
 
     // Try to insert with current auth context
     let { data: recordData, error: recordError } = await supabase
       .from('attendance_records')
-      .insert(insertData)
+      .insert(insertData as any)
       .select()
       .single();
 
@@ -147,11 +149,12 @@ export const registerFace = async (
         },
         image_url: imageUrl,
         face_descriptor: faceDescriptorString,
+        category: category || 'A'
       };
 
       const result = await supabase
         .from('attendance_records')
-        .insert(publicInsertData)
+        .insert(publicInsertData as any)
         .select()
         .single();
         
